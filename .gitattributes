@@ -1,0 +1,8 @@
+# テキストファイルの改行は LF に正規化（クロス環境での引き継ぎを安定させる）
+* text=auto eol=lf
+
+# バイナリ
+*.png binary
+*.pdf binary
+*.docx binary
+*.ico binary
