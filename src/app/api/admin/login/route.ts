@@ -1,4 +1,4 @@
-import { signAdminToken, setAdminCookie, LOCK_MINUTES } from '@/lib/auth';
+import { signAdminToken, setAdminCookie, LOCK_MINUTES, MAX_LOGIN_ATTEMPTS } from '@/lib/auth';
 import {
   verifyAdminPassword,
   getAdminLockState,
@@ -27,16 +27,20 @@ async function postHandler(req: Request) {
 
   const valid = await verifyAdminPassword(password);
   if (!valid) {
-    await recordAdminFailure();
-    const after = await getAdminLockState();
-    if (after.locked) {
+    const attempts = await recordAdminFailure();
+    if (attempts >= MAX_LOGIN_ATTEMPTS) {
       return jsonError(
         `試行回数が上限に達しました。${LOCK_MINUTES}分後に再試行してください`,
         429,
         'ADMIN_LOCKED'
       );
     }
-    return jsonError('パスワードが正しくありません', 401, 'INVALID_CREDENTIALS');
+    const remaining = MAX_LOGIN_ATTEMPTS - attempts;
+    return jsonError(
+      `パスワードが正しくありません（あと${remaining}回でロックされます）`,
+      401,
+      'INVALID_CREDENTIALS'
+    );
   }
 
   await resetAdminAttempts();

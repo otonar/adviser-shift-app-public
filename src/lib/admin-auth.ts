@@ -48,8 +48,9 @@ export async function getAdminLockState(): Promise<LockState> {
 
 /**
  * ログイン失敗を記録。5回到達で 15 分ロック。
+ * @returns 記録後の累積失敗回数（呼び出し側で残り回数の算出に使う）
  */
-export async function recordAdminFailure(): Promise<void> {
+export async function recordAdminFailure(): Promise<number> {
   const supabase = getSupabaseAdmin();
   const { data } = await supabase
     .from('admin_login_attempts')
@@ -77,6 +78,8 @@ export async function recordAdminFailure(): Promise<void> {
       updated_at: new Date().toISOString(),
     })
     .eq('identifier', ADMIN_IDENTIFIER);
+
+  return attempts;
 }
 
 export async function resetAdminAttempts(): Promise<void> {
