@@ -35,6 +35,7 @@ DB は `supabase/migrations/001_initial_schema.sql` を Supabase の SQL Editor 
 
 - [SETUP — 環境構築・実行方法](docs/SETUP.md)
 - [USAGE — 使用方法（スタッフ / 管理者）](docs/USAGE.md)
+- [TEST_CHECKLIST — 実地テスト手順](docs/TEST_CHECKLIST.md)
 - [CAUTION — 使用上の注意事項](docs/CAUTION.md)
 - [ARCHITECTURE — ファイル構成・アーキテクチャ](docs/ARCHITECTURE.md)
 - [DESIGN_DECISIONS — 課題分析・技術選定](docs/DESIGN_DECISIONS.md)
