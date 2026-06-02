@@ -40,21 +40,42 @@ export const createShiftSchema = z
   });
 export type CreateShiftInput = z.infer<typeof createShiftSchema>;
 
-export const updateShiftSchema = z.object({
-  date: dateStr.optional(),
-  start_time: timeStr.optional(),
-  end_time: timeStr.optional(),
-  note: z.string().max(500).nullable().optional(),
-  role_requirements: z
-    .array(
-      z.object({
-        role: z.string().min(1),
-        required_count: z.number().int().min(0),
-      })
-    )
-    .optional(),
-});
+export const updateShiftSchema = z
+  .object({
+    date: dateStr.optional(),
+    start_time: timeStr.optional(),
+    end_time: timeStr.optional(),
+    note: z.string().max(500).nullable().optional(),
+    role_requirements: z
+      .array(
+        z.object({
+          role: z.string().min(1),
+          required_count: z.number().int().min(0),
+        })
+      )
+      .optional(),
+  })
+  .refine((v) => !(v.start_time && v.end_time) || v.start_time < v.end_time, {
+    message: '開始時刻は終了時刻より前にしてください',
+    path: ['end_time'],
+  });
 export type UpdateShiftInput = z.infer<typeof updateShiftSchema>;
+
+// 複数日まとめて掲示（要件共通・日付だけ複数）
+export const createShiftsBulkSchema = z
+  .object({
+    slot_type: z.enum(['day', 'training']),
+    dates: z.array(dateStr).min(1, '日付を1つ以上選んでください').max(60),
+    start_time: timeStr,
+    end_time: timeStr,
+    note: z.string().max(500).optional(),
+    target_user_ids: z.array(z.string().uuid()).default([]),
+  })
+  .refine((v) => v.start_time < v.end_time, {
+    message: '開始時刻は終了時刻より前にしてください',
+    path: ['end_time'],
+  });
+export type CreateShiftsBulkInput = z.infer<typeof createShiftsBulkSchema>;
 
 export const updateTargetsSchema = z.object({
   user_ids: z.array(z.string().uuid()),

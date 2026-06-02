@@ -52,6 +52,15 @@ export default function ShiftDetail({ shiftId }: { shiftId: string }) {
   const [editTargets, setEditTargets] = useState(false);
   const [targetSel, setTargetSel] = useState<Set<string>>(new Set());
 
+  // 基本情報（日付・時間・備考）の編集
+  const [editInfo, setEditInfo] = useState(false);
+  const [infoForm, setInfoForm] = useState({
+    date: '',
+    start_time: '',
+    end_time: '',
+    note: '',
+  });
+
   const load = useCallback(async () => {
     const res = await fetch(`/api/shifts/${shiftId}`);
     if (res.status === 401) {
@@ -151,6 +160,24 @@ export default function ShiftDetail({ shiftId }: { shiftId: string }) {
     }
   }
 
+  async function saveInfo() {
+    if (infoForm.start_time >= infoForm.end_time) {
+      setError('開始時刻は終了時刻より前にしてください');
+      return;
+    }
+    if (
+      await call(`/api/shifts/${shiftId}`, 'PATCH', {
+        date: infoForm.date,
+        start_time: infoForm.start_time,
+        end_time: infoForm.end_time,
+        note: infoForm.note || null,
+      })
+    ) {
+      setEditInfo(false);
+      await load();
+    }
+  }
+
   async function deleteSlot() {
     if (!window.confirm('このシフト枠を削除します。元に戻せません。')) return;
     if (await call(`/api/shifts/${shiftId}`, 'DELETE')) router.push('/admin/shifts');
@@ -183,6 +210,92 @@ export default function ShiftDetail({ shiftId }: { shiftId: string }) {
         </span>
       </div>
       {error && <p className="text-sm text-red-600">{error}</p>}
+
+      {/* 基本情報の編集（掲示後も変更可） */}
+      <section className="rounded border bg-white p-4">
+        <div className="mb-2 flex items-center justify-between">
+          <h2 className="font-bold">枠の基本情報</h2>
+          <button
+            type="button"
+            onClick={() => {
+              if (!editInfo) {
+                setInfoForm({
+                  date: slot.date,
+                  start_time: slot.start_time.slice(0, 5),
+                  end_time: slot.end_time.slice(0, 5),
+                  note: slot.note ?? '',
+                });
+              }
+              setEditInfo(!editInfo);
+            }}
+            className="rounded border px-2 py-1 text-xs"
+          >
+            {editInfo ? '閉じる' : '日付・時間・備考を編集'}
+          </button>
+        </div>
+        {editInfo ? (
+          <div className="flex flex-col gap-2">
+            <label className="flex flex-col gap-1 text-sm">
+              日付
+              <input
+                type="date"
+                value={infoForm.date}
+                onChange={(e) => setInfoForm({ ...infoForm, date: e.target.value })}
+                className="rounded border px-3 py-2"
+              />
+            </label>
+            <div className="flex gap-2">
+              <label className="flex flex-1 flex-col gap-1 text-sm">
+                開始
+                <input
+                  type="time"
+                  value={infoForm.start_time}
+                  onChange={(e) =>
+                    setInfoForm({ ...infoForm, start_time: e.target.value })
+                  }
+                  className="rounded border px-3 py-2"
+                />
+              </label>
+              <label className="flex flex-1 flex-col gap-1 text-sm">
+                終了
+                <input
+                  type="time"
+                  value={infoForm.end_time}
+                  onChange={(e) =>
+                    setInfoForm({ ...infoForm, end_time: e.target.value })
+                  }
+                  className="rounded border px-3 py-2"
+                />
+              </label>
+            </div>
+            <label className="flex flex-col gap-1 text-sm">
+              備考（任意）
+              <input
+                type="text"
+                value={infoForm.note}
+                onChange={(e) => setInfoForm({ ...infoForm, note: e.target.value })}
+                className="rounded border px-3 py-2"
+              />
+            </label>
+            <button
+              type="button"
+              onClick={saveInfo}
+              disabled={busy}
+              className="rounded bg-gray-900 px-3 py-1.5 text-sm text-white disabled:opacity-50"
+            >
+              基本情報を保存
+            </button>
+            <p className="text-xs text-gray-400">
+              日付を変更すると提出期限（日付−14日 23:59 JST）も再計算されます。種別の変更はできません。
+            </p>
+          </div>
+        ) : (
+          <p className="text-sm text-gray-600">
+            {slot.start_time.slice(0, 5)}〜{slot.end_time.slice(0, 5)}
+            {slot.note ? ` / ${slot.note}` : ''}
+          </p>
+        )}
+      </section>
 
       {/* 役割別必要人数 */}
       <section className="rounded border bg-white p-4">

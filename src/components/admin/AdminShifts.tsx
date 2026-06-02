@@ -30,13 +30,24 @@ export default function AdminShifts() {
 
   // 作成フォーム state
   const [slotType, setSlotType] = useState<SlotType>('day');
-  const [date, setDate] = useState('');
+  const [dates, setDates] = useState<string[]>([]);
+  const [dateInput, setDateInput] = useState('');
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
   const [note, setNote] = useState('');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<string | null>(null);
+
+  function addDate() {
+    if (!dateInput || dates.includes(dateInput)) return;
+    setDates([...dates, dateInput].sort());
+    setDateInput('');
+  }
+  function removeDate(d: string) {
+    setDates(dates.filter((x) => x !== d));
+  }
 
   const load = useCallback(async () => {
     const [sRes, uRes] = await Promise.all([
@@ -55,14 +66,19 @@ export default function AdminShifts() {
   async function createSlot(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setResult(null);
+    if (dates.length === 0) {
+      setError('日付を1つ以上追加してください');
+      return;
+    }
     setCreating(true);
     try {
-      const res = await fetch('/api/shifts', {
+      const res = await fetch('/api/shifts/bulk', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           slot_type: slotType,
-          date,
+          dates,
           start_time: startTime,
           end_time: endTime,
           note: note || undefined,
@@ -74,7 +90,10 @@ export default function AdminShifts() {
         setError(data.error ?? '作成に失敗しました');
         return;
       }
-      setDate('');
+      const data = await res.json();
+      setResult(`${data.created}件のシフト枠を掲示しました ✓`);
+      setDates([]);
+      setDateInput('');
       setStartTime('');
       setEndTime('');
       setNote('');
@@ -117,16 +136,47 @@ export default function AdminShifts() {
               研修
             </button>
           </div>
-          <label className="flex flex-col gap-1 text-sm">
-            日付
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              required
-              className="rounded border px-3 py-2"
-            />
-          </label>
+          <div className="flex flex-col gap-1 text-sm">
+            日付（複数選択可）
+            <div className="flex gap-2">
+              <input
+                type="date"
+                value={dateInput}
+                onChange={(e) => setDateInput(e.target.value)}
+                className="flex-1 rounded border px-3 py-2"
+              />
+              <button
+                type="button"
+                onClick={addDate}
+                className="rounded border px-3 py-2 text-sm"
+              >
+                追加
+              </button>
+            </div>
+            {dates.length > 0 && (
+              <div className="mt-1 flex flex-wrap gap-1">
+                {dates.map((d) => (
+                  <span
+                    key={d}
+                    className="flex items-center gap-1 rounded bg-gray-100 px-2 py-0.5 text-xs"
+                  >
+                    {d}
+                    <button
+                      type="button"
+                      onClick={() => removeDate(d)}
+                      className="text-gray-500"
+                      aria-label={`${d} を削除`}
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+            <p className="text-xs text-gray-400">
+              日付を選んで「追加」。複数追加すると同じ時間・対象・備考でまとめて掲示します。
+            </p>
+          </div>
           <div className="flex gap-2">
             <label className="flex flex-1 flex-col gap-1 text-sm">
               開始
@@ -168,12 +218,17 @@ export default function AdminShifts() {
             />
           </div>
           {error && <p className="text-sm text-red-600">{error}</p>}
+          {result && <p className="text-sm font-bold text-green-600">{result}</p>}
           <button
             type="submit"
             disabled={creating}
             className="rounded bg-gray-900 py-2 text-white disabled:opacity-50"
           >
-            {creating ? '作成中…' : 'シフト枠を作成'}
+            {creating
+              ? '掲示中…'
+              : dates.length > 1
+                ? `${dates.length}日ぶんを掲示`
+                : 'シフト枠を掲示'}
           </button>
         </form>
       </section>
