@@ -5,6 +5,7 @@ import {
   setUserCookie,
   MAX_LOGIN_ATTEMPTS,
   LOCK_MINUTES,
+  ATTEMPT_WINDOW_MINUTES,
 } from '@/lib/auth';
 import { loginSchema } from '@/lib/validators';
 import { jsonError, jsonOk, parseBody, verifyOrigin, forbiddenOrigin, withRoute } from '@/lib/http';
@@ -21,7 +22,7 @@ async function postHandler(req: Request) {
   const { data: user } = await supabase
     .from('users')
     .select(
-      'id, name, password_hash, is_active, failed_login_attempts, locked_until'
+      'id, name, password_hash, is_active, failed_login_attempts, locked_until, updated_at'
     )
     .eq('name', name)
     .maybeSingle();
@@ -50,7 +51,12 @@ async function postHandler(req: Request) {
   const valid = await bcrypt.compare(password, user.password_hash);
 
   if (!valid) {
-    const attempts = (lockExpired ? 0 : user.failed_login_attempts ?? 0) + 1;
+    // 最後の更新から ATTEMPT_WINDOW_MINUTES 以上経っていれば古い失敗は数えない
+    const stale = user.updated_at
+      ? Date.now() - new Date(user.updated_at).getTime() >
+        ATTEMPT_WINDOW_MINUTES * 60 * 1000
+      : false;
+    const attempts = (lockExpired || stale ? 0 : user.failed_login_attempts ?? 0) + 1;
     const locked_until =
       attempts >= MAX_LOGIN_ATTEMPTS
         ? new Date(Date.now() + LOCK_MINUTES * 60 * 1000).toISOString()

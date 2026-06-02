@@ -13,6 +13,9 @@ export const ADMIN_COOKIE = 'admin_token';
 // レート制限の共通定数
 export const MAX_LOGIN_ATTEMPTS = 5;
 export const LOCK_MINUTES = 15;
+// 失敗カウントの有効期間。最後の失敗からこの時間が経過していれば
+// カウントを 0 に戻す（古い失敗を引きずってロックしない）。
+export const ATTEMPT_WINDOW_MINUTES = 15;
 
 function secret(): string {
   return requireEnv('JWT_SECRET');

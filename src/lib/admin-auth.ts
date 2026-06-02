@@ -2,7 +2,7 @@ import 'server-only';
 import bcrypt from 'bcryptjs';
 import { getSupabaseAdmin } from './supabase';
 import { requireEnv } from './env';
-import { MAX_LOGIN_ATTEMPTS, LOCK_MINUTES } from './auth';
+import { MAX_LOGIN_ATTEMPTS, LOCK_MINUTES, ATTEMPT_WINDOW_MINUTES } from './auth';
 
 // 管理画面は共有パスワード方式。ADMIN_PASSWORD_HASH と bcrypt 比較する。
 // レート制限カウンタはサーバーレスで揮発しないよう DB (admin_login_attempts) に保持。
@@ -53,11 +53,17 @@ export async function recordAdminFailure(): Promise<void> {
   const supabase = getSupabaseAdmin();
   const { data } = await supabase
     .from('admin_login_attempts')
-    .select('failed_attempts')
+    .select('failed_attempts, updated_at')
     .eq('identifier', ADMIN_IDENTIFIER)
     .maybeSingle();
 
-  const attempts = (data?.failed_attempts ?? 0) + 1;
+  // 最後の失敗から ATTEMPT_WINDOW_MINUTES 以上経っていれば、古い失敗は数えない
+  const stale = data?.updated_at
+    ? Date.now() - new Date(data.updated_at).getTime() >
+      ATTEMPT_WINDOW_MINUTES * 60 * 1000
+    : false;
+  const prior = stale ? 0 : (data?.failed_attempts ?? 0);
+  const attempts = prior + 1;
   const locked_until =
     attempts >= MAX_LOGIN_ATTEMPTS
       ? new Date(Date.now() + LOCK_MINUTES * 60 * 1000).toISOString()
