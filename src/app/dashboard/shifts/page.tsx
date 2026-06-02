@@ -63,15 +63,17 @@ function ShiftCard({ slot, onSaved }: { slot: Slot; onSaved: () => void }) {
             {hm(slot.start_time)}〜{hm(slot.end_time)}
           </p>
         </div>
-        {current !== null && (
-          <span
-            className={`rounded px-2 py-1 text-sm ${
-              current ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-            }`}
-          >
-            {current ? '○ 提出済み' : '× 提出済み'}
-          </span>
-        )}
+        <span
+          className={`rounded px-2 py-1 text-sm font-bold ${
+            current === null
+              ? 'bg-gray-100 text-gray-500'
+              : current
+                ? 'bg-green-100 text-green-800'
+                : 'bg-red-100 text-red-800'
+          }`}
+        >
+          {current === null ? '未回答' : current ? '○ 出られる' : '× 出られない'}
+        </span>
       </div>
       {slot.note && <p className="mt-1 text-sm text-gray-500">{slot.note}</p>}
 
@@ -92,7 +94,9 @@ function ShiftCard({ slot, onSaved }: { slot: Slot; onSaved: () => void }) {
               disabled={saving}
               onClick={() => submit(true)}
               className={`flex-1 rounded border py-2 text-sm disabled:opacity-50 ${
-                current === true ? 'bg-green-600 text-white' : 'bg-white'
+                current === true
+                  ? 'border-green-700 bg-green-600 font-bold text-white'
+                  : 'bg-white text-gray-500'
               }`}
             >
               ○ 出られる
@@ -102,7 +106,9 @@ function ShiftCard({ slot, onSaved }: { slot: Slot; onSaved: () => void }) {
               disabled={saving}
               onClick={() => submit(false)}
               className={`flex-1 rounded border py-2 text-sm disabled:opacity-50 ${
-                current === false ? 'bg-red-600 text-white' : 'bg-white'
+                current === false
+                  ? 'border-red-700 bg-red-600 font-bold text-white'
+                  : 'bg-white text-gray-500'
               }`}
             >
               × 出られない
@@ -214,6 +220,9 @@ function BulkSubmit({ slots, onSaved }: { slots: Slot[]; onSaved: () => void }) 
                 <span className="font-bold">{slot.date}</span>（
                 {slot.slot_type === 'day' ? '当日' : '研修'}）{' '}
                 <span className="text-gray-600">{hmRange(slot)}</span>
+                {choice === null && (
+                  <span className="ml-1 text-xs text-gray-400">（未回答）</span>
+                )}
               </div>
               <div className="flex gap-1">
                 <button
@@ -222,7 +231,9 @@ function BulkSubmit({ slots, onSaved }: { slots: Slot[]; onSaved: () => void }) 
                     setChoices((c) => ({ ...c, [slot.id]: true }))
                   }
                   className={`rounded border px-3 py-1 text-sm ${
-                    choice === true ? 'bg-green-600 text-white' : 'bg-white'
+                    choice === true
+                      ? 'border-green-700 bg-green-600 font-bold text-white'
+                      : 'bg-white text-gray-500'
                   }`}
                 >
                   ○
@@ -233,7 +244,9 @@ function BulkSubmit({ slots, onSaved }: { slots: Slot[]; onSaved: () => void }) 
                     setChoices((c) => ({ ...c, [slot.id]: false }))
                   }
                   className={`rounded border px-3 py-1 text-sm ${
-                    choice === false ? 'bg-red-600 text-white' : 'bg-white'
+                    choice === false
+                      ? 'border-red-700 bg-red-600 font-bold text-white'
+                      : 'bg-white text-gray-500'
                   }`}
                 >
                   ×
