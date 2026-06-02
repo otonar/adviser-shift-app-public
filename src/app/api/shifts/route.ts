@@ -3,10 +3,10 @@ import { authenticateUser, authenticateAdmin } from '@/lib/middleware';
 import { createShiftSchema } from '@/lib/validators';
 import { rolesForSlotType } from '@/lib/role-assignment';
 import { computeDeadline, isExpired } from '@/lib/datetime';
-import { jsonError, jsonOk, parseBody, verifyOrigin, forbiddenOrigin } from '@/lib/http';
+import { jsonError, jsonOk, parseBody, verifyOrigin, forbiddenOrigin, withRoute } from '@/lib/http';
 
 // GET: 一覧。管理者は全枠、一般ユーザーは自分が対象の枠＋自分の提出状況を返す。
-export async function GET() {
+async function getHandler() {
   // 認証を先に行う（未認証時に DB クライアント生成で例外を出さないため）
   const admin = await authenticateAdmin();
   if (admin.ok) {
@@ -62,7 +62,7 @@ export async function GET() {
 }
 
 // POST: シフト枠作成（管理者）。
-export async function POST(req: Request) {
+async function postHandler(req: Request) {
   if (!verifyOrigin()) return forbiddenOrigin();
   const admin = await authenticateAdmin();
   if (!admin.ok) return admin.response;
@@ -104,3 +104,6 @@ export async function POST(req: Request) {
 
   return jsonOk({ slot }, 201);
 }
+
+export const GET = withRoute(getHandler);
+export const POST = withRoute(postHandler);

@@ -2,9 +2,9 @@ import bcrypt from 'bcryptjs';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { signUserToken, setUserCookie } from '@/lib/auth';
 import { signupSchema } from '@/lib/validators';
-import { jsonError, jsonOk, parseBody, verifyOrigin, forbiddenOrigin } from '@/lib/http';
+import { jsonError, jsonOk, parseBody, verifyOrigin, forbiddenOrigin, withRoute } from '@/lib/http';
 
-export async function POST(req: Request) {
+async function postHandler(req: Request) {
   if (!verifyOrigin()) return forbiddenOrigin();
 
   const parsed = await parseBody(req, signupSchema);
@@ -40,3 +40,5 @@ export async function POST(req: Request) {
 
   return jsonOk({ user: { id: user.id, name: user.name } }, 201);
 }
+
+export const POST = withRoute(postHandler);

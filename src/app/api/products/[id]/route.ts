@@ -1,12 +1,12 @@
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { authenticateAdmin } from '@/lib/middleware';
 import { updateProductSchema } from '@/lib/validators';
-import { jsonError, jsonOk, parseBody, verifyOrigin, forbiddenOrigin } from '@/lib/http';
+import { jsonError, jsonOk, parseBody, verifyOrigin, forbiddenOrigin, withRoute } from '@/lib/http';
 
 type Params = { params: { id: string } };
 
 // PATCH: 商品更新（管理者）。
-export async function PATCH(req: Request, { params }: Params) {
+async function patchHandler(req: Request, { params }: Params) {
   if (!verifyOrigin()) return forbiddenOrigin();
   const admin = await authenticateAdmin();
   if (!admin.ok) return admin.response;
@@ -30,7 +30,7 @@ export async function PATCH(req: Request, { params }: Params) {
 }
 
 // DELETE: 商品削除（管理者）。
-export async function DELETE(_req: Request, { params }: Params) {
+async function deleteHandler(_req: Request, { params }: Params) {
   if (!verifyOrigin()) return forbiddenOrigin();
   const admin = await authenticateAdmin();
   if (!admin.ok) return admin.response;
@@ -40,3 +40,6 @@ export async function DELETE(_req: Request, { params }: Params) {
   if (error) return jsonError('削除に失敗しました', 500, 'DELETE_FAILED');
   return jsonOk({ ok: true });
 }
+
+export const PATCH = withRoute(patchHandler);
+export const DELETE = withRoute(deleteHandler);

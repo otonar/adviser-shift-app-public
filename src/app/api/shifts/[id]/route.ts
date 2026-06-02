@@ -2,12 +2,12 @@ import { getSupabaseAdmin } from '@/lib/supabase';
 import { authenticateAdmin } from '@/lib/middleware';
 import { updateShiftSchema } from '@/lib/validators';
 import { computeDeadline } from '@/lib/datetime';
-import { jsonError, jsonOk, parseBody, verifyOrigin, forbiddenOrigin } from '@/lib/http';
+import { jsonError, jsonOk, parseBody, verifyOrigin, forbiddenOrigin, withRoute } from '@/lib/http';
 
 type Params = { params: { id: string } };
 
 // GET: シフト枠詳細（管理者）。対象者・提出状況・必要人数・割り振りをまとめて返す。
-export async function GET(_req: Request, { params }: Params) {
+async function getHandler(_req: Request, { params }: Params) {
   const admin = await authenticateAdmin();
   if (!admin.ok) return admin.response;
 
@@ -77,7 +77,7 @@ export async function GET(_req: Request, { params }: Params) {
 }
 
 // PATCH: 必要人数の更新（任意で枠情報も更新）。
-export async function PATCH(req: Request, { params }: Params) {
+async function patchHandler(req: Request, { params }: Params) {
   if (!verifyOrigin()) return forbiddenOrigin();
   const admin = await authenticateAdmin();
   if (!admin.ok) return admin.response;
@@ -124,7 +124,7 @@ export async function PATCH(req: Request, { params }: Params) {
 }
 
 // DELETE: シフト枠削除（関連は CASCADE）。
-export async function DELETE(_req: Request, { params }: Params) {
+async function deleteHandler(_req: Request, { params }: Params) {
   if (!verifyOrigin()) return forbiddenOrigin();
   const admin = await authenticateAdmin();
   if (!admin.ok) return admin.response;
@@ -137,3 +137,7 @@ export async function DELETE(_req: Request, { params }: Params) {
   if (error) return jsonError('削除に失敗しました', 500, 'DELETE_FAILED');
   return jsonOk({ ok: true });
 }
+
+export const GET = withRoute(getHandler);
+export const PATCH = withRoute(patchHandler);
+export const DELETE = withRoute(deleteHandler);

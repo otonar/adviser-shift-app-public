@@ -1,12 +1,12 @@
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { authenticateAdmin } from '@/lib/middleware';
 import { sendPushMessage } from '@/lib/line';
-import { jsonError, jsonOk, verifyOrigin, forbiddenOrigin } from '@/lib/http';
+import { jsonError, jsonOk, verifyOrigin, forbiddenOrigin, withRoute } from '@/lib/http';
 
 type Params = { params: { shiftId: string } };
 
 // POST: 確定・公開（管理者）。status を published にし、割り振られたスタッフへ LINE 通知。
-export async function POST(_req: Request, { params }: Params) {
+async function postHandler(_req: Request, { params }: Params) {
   if (!verifyOrigin()) return forbiddenOrigin();
   const admin = await authenticateAdmin();
   if (!admin.ok) return admin.response;
@@ -72,3 +72,5 @@ export async function POST(_req: Request, { params }: Params) {
 
   return jsonOk({ ok: true, notified, skipped });
 }
+
+export const POST = withRoute(postHandler);

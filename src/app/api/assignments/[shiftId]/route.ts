@@ -1,12 +1,12 @@
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { authenticateAdmin, authenticateUser } from '@/lib/middleware';
 import { manualAssignmentSchema } from '@/lib/validators';
-import { jsonError, jsonOk, parseBody, verifyOrigin, forbiddenOrigin } from '@/lib/http';
+import { jsonError, jsonOk, parseBody, verifyOrigin, forbiddenOrigin, withRoute } from '@/lib/http';
 
 type Params = { params: { shiftId: string } };
 
 // GET: 割り振り結果。管理者は全員分、一般スタッフは published のときのみ自分の分。
-export async function GET(_req: Request, { params }: Params) {
+async function getHandler(_req: Request, { params }: Params) {
   const slotId = params.shiftId;
 
   const admin = await authenticateAdmin();
@@ -46,7 +46,7 @@ export async function GET(_req: Request, { params }: Params) {
 }
 
 // PATCH: 手動調整（管理者）。既存を全削除 → 新しい割り振りを挿入。status は draft のまま。
-export async function PATCH(req: Request, { params }: Params) {
+async function patchHandler(req: Request, { params }: Params) {
   if (!verifyOrigin()) return forbiddenOrigin();
   const admin = await authenticateAdmin();
   if (!admin.ok) return admin.response;
@@ -81,3 +81,6 @@ export async function PATCH(req: Request, { params }: Params) {
 
   return jsonOk({ ok: true });
 }
+
+export const GET = withRoute(getHandler);
+export const PATCH = withRoute(patchHandler);

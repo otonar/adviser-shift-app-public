@@ -1,11 +1,11 @@
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { authenticateAdmin } from '@/lib/middleware';
-import { jsonError, jsonOk, verifyOrigin, forbiddenOrigin } from '@/lib/http';
+import { jsonError, jsonOk, verifyOrigin, forbiddenOrigin, withRoute } from '@/lib/http';
 
 type Params = { params: { shiftId: string } };
 
 // POST: やり直し（管理者）。割り振りを全削除し status を 'open' に戻す。
-export async function POST(_req: Request, { params }: Params) {
+async function postHandler(_req: Request, { params }: Params) {
   if (!verifyOrigin()) return forbiddenOrigin();
   const admin = await authenticateAdmin();
   if (!admin.ok) return admin.response;
@@ -26,3 +26,5 @@ export async function POST(_req: Request, { params }: Params) {
 
   return jsonOk({ ok: true });
 }
+
+export const POST = withRoute(postHandler);

@@ -2,10 +2,10 @@ import { getSupabaseAdmin } from '@/lib/supabase';
 import { authenticateAdmin } from '@/lib/middleware';
 import { sendPushMessage, isLineConfigured } from '@/lib/line';
 import { notificationSchema } from '@/lib/validators';
-import { jsonError, jsonOk, parseBody, verifyOrigin, forbiddenOrigin } from '@/lib/http';
+import { jsonError, jsonOk, parseBody, verifyOrigin, forbiddenOrigin, withRoute } from '@/lib/http';
 
 // GET: 通知ログ（管理者）。直近 100 件。
-export async function GET() {
+async function getHandler() {
   const admin = await authenticateAdmin();
   if (!admin.ok) return admin.response;
 
@@ -22,7 +22,7 @@ export async function GET() {
 
 // POST: LINE 通知の一斉送信（管理者）。
 // line_user_id が NULL のユーザーはスキップ。送信結果は notification_logs に記録。
-export async function POST(req: Request) {
+async function postHandler(req: Request) {
   if (!verifyOrigin()) return forbiddenOrigin();
   const admin = await authenticateAdmin();
   if (!admin.ok) return admin.response;
@@ -71,3 +71,6 @@ export async function POST(req: Request) {
 
   return jsonOk({ ok: true, sent, skipped });
 }
+
+export const GET = withRoute(getHandler);
+export const POST = withRoute(postHandler);

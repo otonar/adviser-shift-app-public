@@ -63,3 +63,29 @@ export function verifyOrigin(): boolean {
 export function forbiddenOrigin() {
   return jsonError('リクエストが拒否されました', 403, 'FORBIDDEN_ORIGIN');
 }
+
+type RouteHandler<A extends unknown[]> = (
+  ...args: A
+) => Response | Promise<Response>;
+
+/**
+ * Route Handler を包み、未捕捉の例外を統一フォーマットの 500 に変換する。
+ * env 未設定（getSupabaseAdmin / requireEnv が throw）や想定外の例外でも、
+ * 内部情報（スタックトレース・DB 構造・環境変数の値）をクライアントに返さない。
+ * サーバーログにはメッセージのみ残す（値は出力しない）。
+ */
+export function withRoute<A extends unknown[]>(
+  handler: RouteHandler<A>
+): (...args: A) => Promise<Response> {
+  return async (...args: A) => {
+    try {
+      return await handler(...args);
+    } catch (err) {
+      console.error(
+        '[route] 未捕捉の例外:',
+        err instanceof Error ? err.message : 'unknown'
+      );
+      return jsonError('サーバーエラーが発生しました', 500, 'INTERNAL_ERROR');
+    }
+  };
+}

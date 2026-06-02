@@ -1,11 +1,11 @@
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { authenticateAdmin } from '@/lib/middleware';
-import { jsonError, jsonOk } from '@/lib/http';
+import { jsonError, jsonOk, withRoute } from '@/lib/http';
 
 // GET: メンバー一覧（管理者）。
 //  - 既定: アクティブなユーザーのみ（対象スタッフ選択 UI 用）。
 //  - ?scope=all: 脱退済みを含む全ユーザー（メンバー管理画面用）。
-export async function GET(req: Request) {
+async function getHandler(req: Request) {
   const admin = await authenticateAdmin();
   if (!admin.ok) return admin.response;
 
@@ -33,3 +33,5 @@ export async function GET(req: Request) {
 
   return jsonOk({ users });
 }
+
+export const GET = withRoute(getHandler);

@@ -7,9 +7,9 @@ import {
   LOCK_MINUTES,
 } from '@/lib/auth';
 import { loginSchema } from '@/lib/validators';
-import { jsonError, jsonOk, parseBody, verifyOrigin, forbiddenOrigin } from '@/lib/http';
+import { jsonError, jsonOk, parseBody, verifyOrigin, forbiddenOrigin, withRoute } from '@/lib/http';
 
-export async function POST(req: Request) {
+async function postHandler(req: Request) {
   if (!verifyOrigin()) return forbiddenOrigin();
 
   const parsed = await parseBody(req, loginSchema);
@@ -85,3 +85,5 @@ export async function POST(req: Request) {
 
   return jsonOk({ user: { id: user.id, name: user.name } });
 }
+
+export const POST = withRoute(postHandler);

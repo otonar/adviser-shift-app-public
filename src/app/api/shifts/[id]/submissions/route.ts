@@ -2,12 +2,12 @@ import { getSupabaseAdmin } from '@/lib/supabase';
 import { authenticateUser } from '@/lib/middleware';
 import { submissionSchema } from '@/lib/validators';
 import { isExpired } from '@/lib/datetime';
-import { jsonError, jsonOk, parseBody, verifyOrigin, forbiddenOrigin } from '@/lib/http';
+import { jsonError, jsonOk, parseBody, verifyOrigin, forbiddenOrigin, withRoute } from '@/lib/http';
 
 type Params = { params: { id: string } };
 
 // POST: シフト希望の提出・更新（一般スタッフ）。
-export async function POST(req: Request, { params }: Params) {
+async function postHandler(req: Request, { params }: Params) {
   if (!verifyOrigin()) return forbiddenOrigin();
   const auth = await authenticateUser();
   if (!auth.ok) return auth.response;
@@ -56,3 +56,5 @@ export async function POST(req: Request, { params }: Params) {
 
   return jsonOk({ ok: true });
 }
+
+export const POST = withRoute(postHandler);

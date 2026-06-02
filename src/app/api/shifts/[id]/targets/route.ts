@@ -1,12 +1,12 @@
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { authenticateAdmin } from '@/lib/middleware';
 import { updateTargetsSchema } from '@/lib/validators';
-import { jsonError, jsonOk, parseBody, verifyOrigin, forbiddenOrigin } from '@/lib/http';
+import { jsonError, jsonOk, parseBody, verifyOrigin, forbiddenOrigin, withRoute } from '@/lib/http';
 
 type Params = { params: { id: string } };
 
 // PUT: 対象スタッフを総入れ替え（管理者）。
-export async function PUT(req: Request, { params }: Params) {
+async function putHandler(req: Request, { params }: Params) {
   if (!verifyOrigin()) return forbiddenOrigin();
   const admin = await authenticateAdmin();
   if (!admin.ok) return admin.response;
@@ -38,3 +38,5 @@ export async function PUT(req: Request, { params }: Params) {
 
   return jsonOk({ ok: true });
 }
+
+export const PUT = withRoute(putHandler);

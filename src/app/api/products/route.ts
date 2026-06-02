@@ -1,12 +1,12 @@
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { authenticateUser, authenticateAdmin } from '@/lib/middleware';
 import { createProductSchema } from '@/lib/validators';
-import { jsonError, jsonOk, parseBody, verifyOrigin, forbiddenOrigin } from '@/lib/http';
+import { jsonError, jsonOk, parseBody, verifyOrigin, forbiddenOrigin, withRoute } from '@/lib/http';
 
 // GET: 商品一覧。
 //  - 管理者: 全商品（非表示含む）を返す。
 //  - 一般ユーザー: is_visible=true のみ。stock=0 にフラグ付与。
-export async function GET() {
+async function getHandler() {
   const admin = await authenticateAdmin();
   if (admin.ok) {
     const supabase = getSupabaseAdmin();
@@ -37,7 +37,7 @@ export async function GET() {
 }
 
 // POST: 商品追加（管理者）。
-export async function POST(req: Request) {
+async function postHandler(req: Request) {
   if (!verifyOrigin()) return forbiddenOrigin();
   const admin = await authenticateAdmin();
   if (!admin.ok) return admin.response;
@@ -63,3 +63,6 @@ export async function POST(req: Request) {
   }
   return jsonOk({ product: data }, 201);
 }
+
+export const GET = withRoute(getHandler);
+export const POST = withRoute(postHandler);

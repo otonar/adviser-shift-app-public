@@ -1,8 +1,10 @@
 import { clearAdminCookie } from '@/lib/auth';
-import { jsonOk, verifyOrigin, forbiddenOrigin } from '@/lib/http';
+import { jsonOk, verifyOrigin, forbiddenOrigin, withRoute } from '@/lib/http';
 
-export async function POST() {
+async function postHandler() {
   if (!verifyOrigin()) return forbiddenOrigin();
   clearAdminCookie();
   return jsonOk({ ok: true });
 }
+
+export const POST = withRoute(postHandler);

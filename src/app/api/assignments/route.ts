@@ -2,11 +2,11 @@ import { getSupabaseAdmin } from '@/lib/supabase';
 import { authenticateAdmin } from '@/lib/middleware';
 import { runAssignmentSchema } from '@/lib/validators';
 import { assignRoles } from '@/lib/role-assignment';
-import { jsonError, jsonOk, parseBody, verifyOrigin, forbiddenOrigin } from '@/lib/http';
+import { jsonError, jsonOk, parseBody, verifyOrigin, forbiddenOrigin, withRoute } from '@/lib/http';
 import type { SlotType } from '@/types';
 
 // POST: 自動割り振り実行（管理者）。結果を保存し status を 'draft' に。
-export async function POST(req: Request) {
+async function postHandler(req: Request) {
   if (!verifyOrigin()) return forbiddenOrigin();
   const admin = await authenticateAdmin();
   if (!admin.ok) return admin.response;
@@ -82,3 +82,5 @@ export async function POST(req: Request) {
 
   return jsonOk({ ok: true, assigned: result.length });
 }
+
+export const POST = withRoute(postHandler);

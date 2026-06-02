@@ -2,10 +2,10 @@ import { getSupabaseAdmin } from '@/lib/supabase';
 import { authenticateUser } from '@/lib/middleware';
 import { clearUserCookie } from '@/lib/auth';
 import { updateMeSchema } from '@/lib/validators';
-import { jsonError, jsonOk, parseBody, verifyOrigin, forbiddenOrigin } from '@/lib/http';
+import { jsonError, jsonOk, parseBody, verifyOrigin, forbiddenOrigin, withRoute } from '@/lib/http';
 
 // GET: 自分の設定情報。
-export async function GET() {
+async function getHandler() {
   const auth = await authenticateUser();
   if (!auth.ok) return auth.response;
 
@@ -30,7 +30,7 @@ export async function GET() {
 }
 
 // PATCH: 名前変更・役割設定・LINE連携/解除。
-export async function PATCH(req: Request) {
+async function patchHandler(req: Request) {
   if (!verifyOrigin()) return forbiddenOrigin();
   const auth = await authenticateUser();
   if (!auth.ok) return auth.response;
@@ -69,7 +69,7 @@ export async function PATCH(req: Request) {
 }
 
 // DELETE: 脱退（is_active=false）＋ Cookie 削除でログアウト。
-export async function DELETE() {
+async function deleteHandler() {
   if (!verifyOrigin()) return forbiddenOrigin();
   const auth = await authenticateUser();
   if (!auth.ok) return auth.response;
@@ -84,3 +84,7 @@ export async function DELETE() {
   clearUserCookie();
   return jsonOk({ ok: true });
 }
+
+export const GET = withRoute(getHandler);
+export const PATCH = withRoute(patchHandler);
+export const DELETE = withRoute(deleteHandler);

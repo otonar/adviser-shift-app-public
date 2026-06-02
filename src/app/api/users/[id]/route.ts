@@ -1,12 +1,12 @@
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { authenticateAdmin } from '@/lib/middleware';
 import { adminUpdateUserSchema } from '@/lib/validators';
-import { jsonError, jsonOk, parseBody, verifyOrigin, forbiddenOrigin } from '@/lib/http';
+import { jsonError, jsonOk, parseBody, verifyOrigin, forbiddenOrigin, withRoute } from '@/lib/http';
 
 type Params = { params: { id: string } };
 
 // PATCH: メンバーのアクティブ状態を変更（管理者）。強制脱退 / 復帰。
-export async function PATCH(req: Request, { params }: Params) {
+async function patchHandler(req: Request, { params }: Params) {
   if (!verifyOrigin()) return forbiddenOrigin();
   const admin = await authenticateAdmin();
   if (!admin.ok) return admin.response;
@@ -26,3 +26,5 @@ export async function PATCH(req: Request, { params }: Params) {
 
   return jsonOk({ user: data });
 }
+
+export const PATCH = withRoute(patchHandler);

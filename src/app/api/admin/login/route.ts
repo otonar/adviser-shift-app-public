@@ -6,9 +6,9 @@ import {
   resetAdminAttempts,
 } from '@/lib/admin-auth';
 import { adminLoginSchema } from '@/lib/validators';
-import { jsonError, jsonOk, parseBody, verifyOrigin, forbiddenOrigin } from '@/lib/http';
+import { jsonError, jsonOk, parseBody, verifyOrigin, forbiddenOrigin, withRoute } from '@/lib/http';
 
-export async function POST(req: Request) {
+async function postHandler(req: Request) {
   if (!verifyOrigin()) return forbiddenOrigin();
 
   const parsed = await parseBody(req, adminLoginSchema);
@@ -43,3 +43,5 @@ export async function POST(req: Request) {
   setAdminCookie(signAdminToken());
   return jsonOk({ ok: true });
 }
+
+export const POST = withRoute(postHandler);
