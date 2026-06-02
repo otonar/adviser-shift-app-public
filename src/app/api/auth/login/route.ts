@@ -32,6 +32,7 @@ async function postHandler(req: Request) {
   }
 
   // レート制限: ロック中なら 429（残り時間を返す）
+  let lockExpired = false;
   if (user.locked_until) {
     const remainingMs = new Date(user.locked_until).getTime() - Date.now();
     if (remainingMs > 0) {
@@ -41,12 +42,15 @@ async function postHandler(req: Request) {
         'ACCOUNT_LOCKED'
       );
     }
+    // ロック期限切れ: 猶予を復活させるため、失敗カウントを 0 起点に戻す
+    // （これをしないと、明けた直後の 1 回失敗で即再ロックになる）
+    lockExpired = true;
   }
 
   const valid = await bcrypt.compare(password, user.password_hash);
 
   if (!valid) {
-    const attempts = (user.failed_login_attempts ?? 0) + 1;
+    const attempts = (lockExpired ? 0 : user.failed_login_attempts ?? 0) + 1;
     const locked_until =
       attempts >= MAX_LOGIN_ATTEMPTS
         ? new Date(Date.now() + LOCK_MINUTES * 60 * 1000).toISOString()

@@ -39,6 +39,9 @@ export async function getAdminLockState(): Promise<LockState> {
     if (remainingMs > 0) {
       return { locked: true, remainingSec: Math.ceil(remainingMs / 1000) };
     }
+    // ロック期限切れ: カウンタをリセットして 5 回の猶予を復活させる
+    // （これをしないと、明けた直後の 1 回失敗で即再ロックになる）
+    await resetAdminAttempts();
   }
   return { locked: false, remainingSec: 0 };
 }
