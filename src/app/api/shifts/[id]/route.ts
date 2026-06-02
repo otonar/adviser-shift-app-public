@@ -4,7 +4,7 @@ import { updateShiftSchema } from '@/lib/validators';
 import { computeDeadline } from '@/lib/datetime';
 import { jsonError, jsonOk, parseBody, verifyOrigin, forbiddenOrigin, withRoute } from '@/lib/http';
 
-type Params = { params: { id: string } };
+type Params = { params: Promise<{ id: string }> };
 
 // GET: シフト枠詳細（管理者）。対象者・提出状況・必要人数・割り振りをまとめて返す。
 async function getHandler(_req: Request, { params }: Params) {
@@ -12,7 +12,7 @@ async function getHandler(_req: Request, { params }: Params) {
   if (!admin.ok) return admin.response;
 
   const supabase = getSupabaseAdmin();
-  const slotId = params.id;
+  const slotId = (await params).id;
 
   const { data: slot, error } = await supabase
     .from('shift_slots')
@@ -78,7 +78,7 @@ async function getHandler(_req: Request, { params }: Params) {
 
 // PATCH: 必要人数の更新（任意で枠情報も更新）。
 async function patchHandler(req: Request, { params }: Params) {
-  if (!verifyOrigin()) return forbiddenOrigin();
+  if (!(await verifyOrigin())) return forbiddenOrigin();
   const admin = await authenticateAdmin();
   if (!admin.ok) return admin.response;
 
@@ -87,7 +87,7 @@ async function patchHandler(req: Request, { params }: Params) {
   const { date, start_time, end_time, note, role_requirements } = parsed.data;
 
   const supabase = getSupabaseAdmin();
-  const slotId = params.id;
+  const slotId = (await params).id;
 
   // 枠情報の更新
   const slotUpdate: Record<string, unknown> = {};
@@ -125,7 +125,7 @@ async function patchHandler(req: Request, { params }: Params) {
 
 // DELETE: シフト枠削除（関連は CASCADE）。
 async function deleteHandler(_req: Request, { params }: Params) {
-  if (!verifyOrigin()) return forbiddenOrigin();
+  if (!(await verifyOrigin())) return forbiddenOrigin();
   const admin = await authenticateAdmin();
   if (!admin.ok) return admin.response;
 
@@ -133,7 +133,7 @@ async function deleteHandler(_req: Request, { params }: Params) {
   const { error } = await supabase
     .from('shift_slots')
     .delete()
-    .eq('id', params.id);
+    .eq('id', (await params).id);
   if (error) return jsonError('削除に失敗しました', 500, 'DELETE_FAILED');
   return jsonOk({ ok: true });
 }

@@ -11,7 +11,7 @@ import { loginSchema } from '@/lib/validators';
 import { jsonError, jsonOk, parseBody, verifyOrigin, forbiddenOrigin, withRoute } from '@/lib/http';
 
 async function postHandler(req: Request) {
-  if (!verifyOrigin()) return forbiddenOrigin();
+  if (!(await verifyOrigin())) return forbiddenOrigin();
 
   const parsed = await parseBody(req, loginSchema);
   if (!parsed.ok) return parsed.response;
@@ -91,7 +91,7 @@ async function postHandler(req: Request) {
     .eq('id', user.id);
 
   const token = signUserToken({ userId: user.id, name: user.name });
-  setUserCookie(token);
+  await setUserCookie(token);
 
   return jsonOk({ user: { id: user.id, name: user.name } });
 }

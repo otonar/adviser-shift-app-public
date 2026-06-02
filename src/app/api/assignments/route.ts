@@ -7,7 +7,7 @@ import type { SlotType } from '@/types';
 
 // POST: 自動割り振り実行（管理者）。結果を保存し status を 'draft' に。
 async function postHandler(req: Request) {
-  if (!verifyOrigin()) return forbiddenOrigin();
+  if (!(await verifyOrigin())) return forbiddenOrigin();
   const admin = await authenticateAdmin();
   if (!admin.ok) return admin.response;
 

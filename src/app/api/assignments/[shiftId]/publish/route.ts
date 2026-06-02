@@ -3,16 +3,16 @@ import { authenticateAdmin } from '@/lib/middleware';
 import { sendPushMessage } from '@/lib/line';
 import { jsonError, jsonOk, verifyOrigin, forbiddenOrigin, withRoute } from '@/lib/http';
 
-type Params = { params: { shiftId: string } };
+type Params = { params: Promise<{ shiftId: string }> };
 
 // POST: 確定・公開（管理者）。status を published にし、割り振られたスタッフへ LINE 通知。
 async function postHandler(_req: Request, { params }: Params) {
-  if (!verifyOrigin()) return forbiddenOrigin();
+  if (!(await verifyOrigin())) return forbiddenOrigin();
   const admin = await authenticateAdmin();
   if (!admin.ok) return admin.response;
 
   const supabase = getSupabaseAdmin();
-  const slotId = params.shiftId;
+  const slotId = (await params).shiftId;
 
   const { data: slot } = await supabase
     .from('shift_slots')

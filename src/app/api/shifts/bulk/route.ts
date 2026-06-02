@@ -8,7 +8,7 @@ import { jsonError, jsonOk, parseBody, verifyOrigin, forbiddenOrigin, withRoute 
 // POST: 複数日のシフト枠をまとめて作成（管理者）。
 // slot_type・時間・備考・対象者は共通、日付だけ複数。各枠に役割（初期0）を初期化。
 async function postHandler(req: Request) {
-  if (!verifyOrigin()) return forbiddenOrigin();
+  if (!(await verifyOrigin())) return forbiddenOrigin();
   const admin = await authenticateAdmin();
   if (!admin.ok) return admin.response;
 

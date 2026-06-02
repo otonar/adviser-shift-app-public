@@ -8,7 +8,7 @@ import { jsonError, jsonOk, parseBody, verifyOrigin, forbiddenOrigin, withRoute 
 // 対象外の枠・期限切れの枠はスキップし、保存件数とスキップ件数を返す。
 // note は送らない（既存の備考を保持。備考は1件ずつのカードUIで編集）。
 async function postHandler(req: Request) {
-  if (!verifyOrigin()) return forbiddenOrigin();
+  if (!(await verifyOrigin())) return forbiddenOrigin();
   const auth = await authenticateUser();
   if (!auth.ok) return auth.response;
 

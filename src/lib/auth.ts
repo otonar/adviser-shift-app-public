@@ -78,26 +78,26 @@ export function verifyAdminToken(token: string): AdminJwtPayload | null {
 
 // ===== Cookie 操作 =====
 
-export function setUserCookie(token: string) {
-  cookies().set(USER_COOKIE, token, { ...baseCookieOptions(), maxAge: maxAgeSeconds() });
+export async function setUserCookie(token: string) {
+  (await cookies()).set(USER_COOKIE, token, { ...baseCookieOptions(), maxAge: maxAgeSeconds() });
 }
 
-export function clearUserCookie() {
-  cookies().set(USER_COOKIE, '', { ...baseCookieOptions(), maxAge: 0 });
+export async function clearUserCookie() {
+  (await cookies()).set(USER_COOKIE, '', { ...baseCookieOptions(), maxAge: 0 });
 }
 
-export function getUserCookie(): string | undefined {
-  return cookies().get(USER_COOKIE)?.value;
+export async function getUserCookie(): Promise<string | undefined> {
+  return (await cookies()).get(USER_COOKIE)?.value;
 }
 
-export function setAdminCookie(token: string) {
-  cookies().set(ADMIN_COOKIE, token, { ...baseCookieOptions(), maxAge: maxAgeSeconds() });
+export async function setAdminCookie(token: string) {
+  (await cookies()).set(ADMIN_COOKIE, token, { ...baseCookieOptions(), maxAge: maxAgeSeconds() });
 }
 
-export function clearAdminCookie() {
-  cookies().set(ADMIN_COOKIE, '', { ...baseCookieOptions(), maxAge: 0 });
+export async function clearAdminCookie() {
+  (await cookies()).set(ADMIN_COOKIE, '', { ...baseCookieOptions(), maxAge: 0 });
 }
 
-export function getAdminCookie(): string | undefined {
-  return cookies().get(ADMIN_COOKIE)?.value;
+export async function getAdminCookie(): Promise<string | undefined> {
+  return (await cookies()).get(ADMIN_COOKIE)?.value;
 }

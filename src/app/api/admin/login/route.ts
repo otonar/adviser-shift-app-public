@@ -9,7 +9,7 @@ import { adminLoginSchema } from '@/lib/validators';
 import { jsonError, jsonOk, parseBody, verifyOrigin, forbiddenOrigin, withRoute } from '@/lib/http';
 
 async function postHandler(req: Request) {
-  if (!verifyOrigin()) return forbiddenOrigin();
+  if (!(await verifyOrigin())) return forbiddenOrigin();
 
   const parsed = await parseBody(req, adminLoginSchema);
   if (!parsed.ok) return parsed.response;
@@ -44,7 +44,7 @@ async function postHandler(req: Request) {
   }
 
   await resetAdminAttempts();
-  setAdminCookie(signAdminToken());
+  await setAdminCookie(signAdminToken());
   return jsonOk({ ok: true });
 }
 

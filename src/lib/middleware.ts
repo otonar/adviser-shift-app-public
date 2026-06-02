@@ -29,7 +29,7 @@ function unauthorized() {
  */
 export async function authenticateUser(): Promise<UserAuth> {
   try {
-    const token = getUserCookie();
+    const token = await getUserCookie();
     if (!token) return { ok: false, response: unauthorized() };
 
     const payload = verifyUserToken(token);
@@ -58,7 +58,7 @@ export async function authenticateUser(): Promise<UserAuth> {
  */
 export async function authenticateAdmin(): Promise<AdminAuth> {
   try {
-    const token = getAdminCookie();
+    const token = await getAdminCookie();
     if (!token) return { ok: false, response: unauthorized() };
 
     const payload = verifyAdminToken(token);

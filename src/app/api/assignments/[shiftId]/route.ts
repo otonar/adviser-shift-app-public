@@ -3,11 +3,11 @@ import { authenticateAdmin, authenticateUser } from '@/lib/middleware';
 import { manualAssignmentSchema } from '@/lib/validators';
 import { jsonError, jsonOk, parseBody, verifyOrigin, forbiddenOrigin, withRoute } from '@/lib/http';
 
-type Params = { params: { shiftId: string } };
+type Params = { params: Promise<{ shiftId: string }> };
 
 // GET: 割り振り結果。管理者は全員分、一般スタッフは published のときのみ自分の分。
 async function getHandler(_req: Request, { params }: Params) {
-  const slotId = params.shiftId;
+  const slotId = (await params).shiftId;
 
   const admin = await authenticateAdmin();
   if (admin.ok) {
@@ -47,7 +47,7 @@ async function getHandler(_req: Request, { params }: Params) {
 
 // PATCH: 手動調整（管理者）。既存を全削除 → 新しい割り振りを挿入。status は draft のまま。
 async function patchHandler(req: Request, { params }: Params) {
-  if (!verifyOrigin()) return forbiddenOrigin();
+  if (!(await verifyOrigin())) return forbiddenOrigin();
   const admin = await authenticateAdmin();
   if (!admin.ok) return admin.response;
 
@@ -56,7 +56,7 @@ async function patchHandler(req: Request, { params }: Params) {
   const { assignments } = parsed.data;
 
   const supabase = getSupabaseAdmin();
-  const slotId = params.shiftId;
+  const slotId = (await params).shiftId;
 
   await supabase
     .from('shift_assignments')

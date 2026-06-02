@@ -69,7 +69,7 @@ async function getHandler(req: Request) {
 
 // POST: シフト枠作成（管理者）。
 async function postHandler(req: Request) {
-  if (!verifyOrigin()) return forbiddenOrigin();
+  if (!(await verifyOrigin())) return forbiddenOrigin();
   const admin = await authenticateAdmin();
   if (!admin.ok) return admin.response;
 
