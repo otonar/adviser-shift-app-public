@@ -18,10 +18,19 @@ export default function Dashboard() {
         >
           確定した役割
         </Link>
+        <Link
+          href="/dashboard/products"
+          className="rounded border bg-white p-4 text-center"
+        >
+          商品情報
+        </Link>
+        <Link
+          href="/dashboard/settings"
+          className="rounded border bg-white p-4 text-center"
+        >
+          設定
+        </Link>
       </div>
-      <p className="text-xs text-gray-400">
-        商品・設定はフェーズ D で追加予定です。
-      </p>
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { DAY_ROLES, TRAINING_ROLES } from '@/types';
 
 // 全 API Route Handler はここで定義した zod スキーマでバリデーションする。
 
@@ -84,3 +85,61 @@ export const manualAssignmentSchema = z.object({
   ),
 });
 export type ManualAssignmentInput = z.infer<typeof manualAssignmentSchema>;
+
+// ===== 商品・在庫 =====
+
+export const createProductSchema = z.object({
+  name: z.string().trim().min(1, '商品名は必須です').max(100),
+  description: z.string().max(1000).nullable().optional(),
+  category: z.string().max(50).nullable().optional(),
+  stock: z.number().int().min(0, '在庫は0以上').default(0),
+  is_visible: z.boolean().default(true),
+});
+export type CreateProductInput = z.infer<typeof createProductSchema>;
+
+export const updateProductSchema = z
+  .object({
+    name: z.string().trim().min(1).max(100).optional(),
+    description: z.string().max(1000).nullable().optional(),
+    category: z.string().max(50).nullable().optional(),
+    stock: z.number().int().min(0).optional(),
+    is_visible: z.boolean().optional(),
+  })
+  .refine((v) => Object.keys(v).length > 0, {
+    message: '更新項目がありません',
+  });
+export type UpdateProductInput = z.infer<typeof updateProductSchema>;
+
+// ===== ユーザー設定（自分） =====
+
+const dayRoleEnum = z.enum(DAY_ROLES);
+const trainingRoleEnum = z.enum(TRAINING_ROLES);
+
+export const updateMeSchema = z
+  .object({
+    name: z.string().trim().min(2, '名前は2文字以上').max(20, '名前は20文字以内').optional(),
+    day_roles: z.array(dayRoleEnum).optional(),
+    training_roles: z.array(trainingRoleEnum).optional(),
+    // LIFF から取得した LINE userId。null で連携解除。
+    line_user_id: z.string().trim().min(1).max(100).nullable().optional(),
+  })
+  .refine((v) => Object.keys(v).length > 0, {
+    message: '更新項目がありません',
+  });
+export type UpdateMeInput = z.infer<typeof updateMeSchema>;
+
+// ===== メンバー管理（管理者） =====
+
+export const adminUpdateUserSchema = z.object({
+  is_active: z.boolean(),
+});
+export type AdminUpdateUserInput = z.infer<typeof adminUpdateUserSchema>;
+
+// ===== LINE 通知 =====
+
+export const notificationSchema = z.object({
+  type: z.enum(['shift_reminder', 'role_assigned', 'shift_confirmed', 'custom']),
+  target_user_ids: z.union([z.literal('all'), z.array(z.string().uuid()).min(1)]),
+  message: z.string().trim().min(1, 'メッセージは必須です').max(1000),
+});
+export type NotificationInput = z.infer<typeof notificationSchema>;

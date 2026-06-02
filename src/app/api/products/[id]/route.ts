@@ -1,0 +1,42 @@
+import { getSupabaseAdmin } from '@/lib/supabase';
+import { authenticateAdmin } from '@/lib/middleware';
+import { updateProductSchema } from '@/lib/validators';
+import { jsonError, jsonOk, parseBody, verifyOrigin, forbiddenOrigin } from '@/lib/http';
+
+type Params = { params: { id: string } };
+
+// PATCH: 商品更新（管理者）。
+export async function PATCH(req: Request, { params }: Params) {
+  if (!verifyOrigin()) return forbiddenOrigin();
+  const admin = await authenticateAdmin();
+  if (!admin.ok) return admin.response;
+
+  const parsed = await parseBody(req, updateProductSchema);
+  if (!parsed.ok) return parsed.response;
+
+  const update: Record<string, unknown> = { ...parsed.data };
+  update.updated_at = new Date().toISOString();
+
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from('products')
+    .update(update)
+    .eq('id', params.id)
+    .select('*')
+    .maybeSingle();
+  if (error) return jsonError('更新に失敗しました', 500, 'UPDATE_FAILED');
+  if (!data) return jsonError('商品が見つかりません', 404, 'NOT_FOUND');
+  return jsonOk({ product: data });
+}
+
+// DELETE: 商品削除（管理者）。
+export async function DELETE(_req: Request, { params }: Params) {
+  if (!verifyOrigin()) return forbiddenOrigin();
+  const admin = await authenticateAdmin();
+  if (!admin.ok) return admin.response;
+
+  const supabase = getSupabaseAdmin();
+  const { error } = await supabase.from('products').delete().eq('id', params.id);
+  if (error) return jsonError('削除に失敗しました', 500, 'DELETE_FAILED');
+  return jsonOk({ ok: true });
+}
