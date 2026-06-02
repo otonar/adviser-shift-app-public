@@ -18,7 +18,9 @@ if (!password) {
 const hash = await bcrypt.hash(password, 12);
 const jwtSecret = randomBytes(48).toString('base64url');
 
-console.log('\n.env.local に以下を設定してください:\n');
-console.log(`ADMIN_PASSWORD_HASH=${hash}`);
-console.log(`JWT_SECRET=${jwtSecret}`);
+// ハッシュは '$' を含む。Next.js は .env.local の値の '$' を変数展開するため、
+// シングルクォートで囲んで展開を防ぐ（囲まないと ADMIN_PASSWORD_HASH が空になる）。
+console.log('\n.env.local に以下をそのまま貼り付けてください（シングルクォートを含む）:\n');
+console.log(`ADMIN_PASSWORD_HASH='${hash}'`);
+console.log(`JWT_SECRET='${jwtSecret}'`);
 console.log('');
