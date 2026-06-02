@@ -69,6 +69,20 @@ export const submissionSchema = z.object({
 });
 export type SubmissionInput = z.infer<typeof submissionSchema>;
 
+// 複数枠まとめて提出。note は扱わず available のみ（既存の備考は保持）。
+export const bulkSubmissionSchema = z.object({
+  items: z
+    .array(
+      z.object({
+        shift_slot_id: z.string().uuid(),
+        available: z.boolean(),
+      })
+    )
+    .min(1)
+    .max(200),
+});
+export type BulkSubmissionInput = z.infer<typeof bulkSubmissionSchema>;
+
 // ===== 役割割り振り =====
 
 export const runAssignmentSchema = z.object({
