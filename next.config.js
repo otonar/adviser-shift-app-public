@@ -3,6 +3,10 @@ const withPWA = require('@ducanh2912/next-pwa').default({
   // 開発中は Service Worker を無効化（HMR との競合・キャッシュ事故を避ける）
   disable: process.env.NODE_ENV === 'development',
   register: true,
+  // オフライン時、キャッシュ外のページは src/app/~offline を表示する
+  fallbacks: {
+    document: '/~offline',
+  },
   workboxOptions: {
     skipWaiting: true,
   },
