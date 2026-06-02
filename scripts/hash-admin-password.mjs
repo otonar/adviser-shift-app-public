@@ -18,9 +18,15 @@ if (!password) {
 const hash = await bcrypt.hash(password, 12);
 const jwtSecret = randomBytes(48).toString('base64url');
 
-// ハッシュは '$' を含む。Next.js は .env.local の値の '$' を変数展開するため、
-// シングルクォートで囲んで展開を防ぐ（囲まないと ADMIN_PASSWORD_HASH が空になる）。
-console.log('\n.env.local に以下をそのまま貼り付けてください（シングルクォートを含む）:\n');
-console.log(`ADMIN_PASSWORD_HASH='${hash}'`);
-console.log(`JWT_SECRET='${jwtSecret}'`);
+// bcrypt ハッシュは '$' を含み、Next.js(@next/env) は .env.local の値の '$' を
+// 変数展開してしまう（シングルクォートでも防げないことを実測で確認済み）。
+// そこで .env.local 用には '$' を '\$' にエスケープした形で出力する。
+const escapedHash = hash.replace(/\$/g, '\\$');
+console.log('\n--- .env.local 用（$ を \\$ にエスケープ済み。1行まるごと貼り付け）---\n');
+console.log(`ADMIN_PASSWORD_HASH=${escapedHash}`);
+console.log(`JWT_SECRET=${jwtSecret}`);
+console.log(
+  '\n--- Vercel など「環境変数UI」に直接入れる場合（エスケープ無しの生ハッシュ）---\n'
+);
+console.log(`ADMIN_PASSWORD_HASH=${hash}`);
 console.log('');
