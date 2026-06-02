@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import PasswordInput from '@/components/ui/PasswordInput';
 
 export default function AdminLoginForm() {
   const router = useRouter();
@@ -37,13 +38,10 @@ export default function AdminLoginForm() {
     <form onSubmit={handleSubmit} className="flex w-full max-w-sm flex-col gap-3">
       <label className="flex flex-col gap-1 text-sm">
         管理パスワード
-        <input
-          type="password"
+        <PasswordInput
           value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
+          onChange={setPassword}
           autoComplete="current-password"
-          className="rounded border px-3 py-2"
         />
       </label>
       {error && <p className="text-sm text-red-600">{error}</p>}

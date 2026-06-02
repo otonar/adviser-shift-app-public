@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import PasswordInput from '@/components/ui/PasswordInput';
 
 type Mode = 'login' | 'signup';
 
@@ -75,13 +76,10 @@ export default function UserAuthForm() {
         </label>
         <label className="flex flex-col gap-1 text-sm">
           パスワード
-          <input
-            type="password"
+          <PasswordInput
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
+            onChange={setPassword}
             autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-            className="rounded border px-3 py-2"
           />
         </label>
         {mode === 'signup' && (

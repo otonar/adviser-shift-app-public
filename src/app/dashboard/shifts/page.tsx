@@ -21,12 +21,14 @@ function hm(t: string) {
 function ShiftCard({ slot, onSaved }: { slot: Slot; onSaved: () => void }) {
   const [note, setNote] = useState(slot.submission?.note ?? '');
   const [saving, setSaving] = useState(false);
+  const [justSaved, setJustSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const current = slot.submission?.available ?? null;
 
   async function submit(available: boolean) {
     setSaving(true);
     setError(null);
+    setJustSaved(false);
     try {
       const res = await fetch(`/api/shifts/${slot.id}/submissions`, {
         method: 'POST',
@@ -38,6 +40,8 @@ function ShiftCard({ slot, onSaved }: { slot: Slot; onSaved: () => void }) {
         setError(data.error ?? '保存に失敗しました');
         return;
       }
+      setJustSaved(true);
+      setTimeout(() => setJustSaved(false), 2500);
       onSaved();
     } catch {
       setError('通信エラーが発生しました');
@@ -104,6 +108,10 @@ function ShiftCard({ slot, onSaved }: { slot: Slot; onSaved: () => void }) {
               × 出られない
             </button>
           </div>
+          {saving && <p className="text-sm text-gray-500">保存中…</p>}
+          {justSaved && !saving && (
+            <p className="text-sm font-bold text-green-600">保存しました ✓</p>
+          )}
           {error && <p className="text-sm text-red-600">{error}</p>}
         </div>
       )}
