@@ -279,7 +279,7 @@ export default function StaffShiftsPage() {
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch('/api/shifts');
+      const res = await fetch('/api/shifts?scope=mine');
       if (!res.ok) {
         setError('読み込みに失敗しました');
         return;

@@ -6,16 +6,20 @@ import { jsonError, jsonOk, parseBody, verifyOrigin, forbiddenOrigin, withRoute 
 // GET: 商品一覧。
 //  - 管理者: 全商品（非表示含む）を返す。
 //  - 一般ユーザー: is_visible=true のみ。stock=0 にフラグ付与。
-async function getHandler() {
-  const admin = await authenticateAdmin();
-  if (admin.ok) {
-    const supabase = getSupabaseAdmin();
-    const { data, error } = await supabase
-      .from('products')
-      .select('*')
-      .order('created_at', { ascending: false });
-    if (error) return jsonError('取得に失敗しました', 500, 'FETCH_FAILED');
-    return jsonOk({ products: data ?? [] });
+async function getHandler(req: Request) {
+  // ?scope=mine のときは管理 Cookie があってもスタッフ視点（可視商品のみ）を返す
+  const scope = new URL(req.url).searchParams.get('scope');
+  if (scope !== 'mine') {
+    const admin = await authenticateAdmin();
+    if (admin.ok) {
+      const supabase = getSupabaseAdmin();
+      const { data, error } = await supabase
+        .from('products')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (error) return jsonError('取得に失敗しました', 500, 'FETCH_FAILED');
+      return jsonOk({ products: data ?? [] });
+    }
   }
 
   const user = await authenticateUser();

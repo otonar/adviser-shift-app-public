@@ -18,7 +18,7 @@ export default function StaffProductsPage() {
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch('/api/products');
+      const res = await fetch('/api/products?scope=mine');
       if (!res.ok) {
         setError('読み込みに失敗しました');
         return;

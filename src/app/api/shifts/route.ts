@@ -6,17 +6,23 @@ import { computeDeadline, isExpired } from '@/lib/datetime';
 import { jsonError, jsonOk, parseBody, verifyOrigin, forbiddenOrigin, withRoute } from '@/lib/http';
 
 // GET: 一覧。管理者は全枠、一般ユーザーは自分が対象の枠＋自分の提出状況を返す。
-async function getHandler() {
+// ?scope=mine のときは管理 Cookie があってもスタッフ視点（自分の提出状況つき）を返す。
+// （管理とスタッフは別 Cookie で同時ログインでき、既定だと管理ビューが優先されてしまうため）
+async function getHandler(req: Request) {
+  const scope = new URL(req.url).searchParams.get('scope');
+
   // 認証を先に行う（未認証時に DB クライアント生成で例外を出さないため）
-  const admin = await authenticateAdmin();
-  if (admin.ok) {
-    const supabase = getSupabaseAdmin();
-    const { data, error } = await supabase
-      .from('shift_slots')
-      .select('*')
-      .order('date', { ascending: true });
-    if (error) return jsonError('取得に失敗しました', 500, 'FETCH_FAILED');
-    return jsonOk({ slots: data ?? [] });
+  if (scope !== 'mine') {
+    const admin = await authenticateAdmin();
+    if (admin.ok) {
+      const supabase = getSupabaseAdmin();
+      const { data, error } = await supabase
+        .from('shift_slots')
+        .select('*')
+        .order('date', { ascending: true });
+      if (error) return jsonError('取得に失敗しました', 500, 'FETCH_FAILED');
+      return jsonOk({ slots: data ?? [] });
+    }
   }
 
   const user = await authenticateUser();

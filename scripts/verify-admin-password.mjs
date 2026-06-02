@@ -4,7 +4,9 @@
 //   node scripts/verify-admin-password.mjs "確認したいパスワード"
 // （ハッシュやパスワードの値は表示しない。MATCH / NO MATCH だけ出力）
 
-import { loadEnvConfig } from '@next/env';
+// @next/env は CommonJS のため default import 経由で読み込む
+import nextEnv from '@next/env';
+const { loadEnvConfig } = nextEnv;
 import bcrypt from 'bcryptjs';
 
 const password = process.argv[2];
