@@ -9,9 +9,11 @@
 // 投入物:
 //   - テストユーザー 12 名（当日/研修の役割を網羅。全役割に複数候補が出るよう配分）
 //   - 商品 5 件（在庫0・非表示を含む）
-// ※ シフト枠は管理画面 UI から作成して作成フローも検証する想定のため投入しない。
+//   - サンプルシフト枠 2 件（当日/研修）＋対象者（全12名）＋必要人数＋希望提出（○10/×2）
+//     → 管理画面で「自動割り振り→公開」をすぐ試せる状態（status=open）
 //
-// 冪等性: ユーザーは name(UNIQUE) で upsert、商品は同名のシード商品を削除してから再投入。
+// 冪等性: ユーザーは name(UNIQUE) で upsert、商品は同名で削除→再投入、
+//         シフト枠は note の '[seed]' マーカーで削除（関連は CASCADE）→再投入。
 
 import { createClient } from '@supabase/supabase-js';
 import bcrypt from 'bcryptjs';
@@ -98,16 +100,135 @@ async function seedProducts() {
   return data?.length ?? 0;
 }
 
+// シフト枠の必要人数（src/lib/role-assignment.ts の役割定義に合わせる）
+const DAY_ROLE_REQS = [
+  { role: '全体会', required_count: 1 },
+  { role: '受付', required_count: 2 },
+  { role: 'アテンド', required_count: 2 },
+  { role: 'PC', required_count: 2 },
+  { role: '共済', required_count: 1 },
+  { role: '学び', required_count: 1 },
+];
+const TRAINING_ROLE_REQS = [
+  { role: 'コアメンバー', required_count: 1 },
+  { role: 'PC', required_count: 1 },
+  { role: '共済', required_count: 1 },
+  { role: '学び', required_count: 1 },
+];
+
+// 提出期限 = (date の 14 日前) の 23:59:59 JST（src/lib/datetime.ts と同一ロジック）
+function isoDeadline(dateStr) {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const base = new Date(Date.UTC(y, m - 1, d));
+  base.setUTCDate(base.getUTCDate() - 14);
+  const yy = base.getUTCFullYear();
+  const mm = String(base.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(base.getUTCDate()).padStart(2, '0');
+  return `${yy}-${mm}-${dd}T23:59:59+09:00`;
+}
+
+function futureDate(daysAhead) {
+  const t = new Date();
+  t.setUTCDate(t.getUTCDate() + daysAhead);
+  const yy = t.getUTCFullYear();
+  const mm = String(t.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(t.getUTCDate()).padStart(2, '0');
+  return `${yy}-${mm}-${dd}`;
+}
+
+async function seedShifts() {
+  // 既存のシード枠を削除（note の '[seed]' マーカー。関連テーブルは ON DELETE CASCADE で消える）
+  const { error: delErr } = await supabase
+    .from('shift_slots')
+    .delete()
+    .like('note', '[seed]%');
+  if (delErr) throw new Error(`shift_slots 削除失敗: ${delErr.message}`);
+
+  // シードユーザーの id を取得（対象者・提出に使う）
+  const { data: users, error: uErr } = await supabase
+    .from('users')
+    .select('id, name')
+    .like('name', 'テスト_%')
+    .order('name');
+  if (uErr) throw new Error(`users 取得失敗: ${uErr.message}`);
+  const userIds = (users ?? []).map((u) => u.id);
+  if (userIds.length === 0) return { slots: 0, submissions: 0 };
+
+  const slots = [
+    {
+      slot_type: 'day',
+      date: futureDate(20),
+      start_time: '09:00:00',
+      end_time: '17:00:00',
+      note: '[seed] 当日サンプル枠（自動割り振りの動作確認用）',
+      reqs: DAY_ROLE_REQS,
+    },
+    {
+      slot_type: 'training',
+      date: futureDate(25),
+      start_time: '13:00:00',
+      end_time: '16:00:00',
+      note: '[seed] 研修サンプル枠（自動割り振りの動作確認用）',
+      reqs: TRAINING_ROLE_REQS,
+    },
+  ];
+
+  let submissionCount = 0;
+  for (const s of slots) {
+    const { data: slot, error: sErr } = await supabase
+      .from('shift_slots')
+      .insert({
+        slot_type: s.slot_type,
+        date: s.date,
+        start_time: s.start_time,
+        end_time: s.end_time,
+        deadline: isoDeadline(s.date),
+        note: s.note,
+      })
+      .select('id')
+      .single();
+    if (sErr || !slot) throw new Error(`shift_slots 投入失敗: ${sErr?.message}`);
+
+    await supabase.from('shift_role_requirements').insert(
+      s.reqs.map((r) => ({
+        shift_slot_id: slot.id,
+        role: r.role,
+        required_count: r.required_count,
+      }))
+    );
+    await supabase
+      .from('shift_target_users')
+      .insert(userIds.map((uid) => ({ shift_slot_id: slot.id, user_id: uid })));
+
+    // 提出: 末尾2名を×（出られない）、それ以外は○（出られる）
+    const subs = userIds.map((uid, i) => ({
+      user_id: uid,
+      shift_slot_id: slot.id,
+      available: i < userIds.length - 2,
+      note: null,
+    }));
+    await supabase.from('shift_submissions').insert(subs);
+    submissionCount += subs.length;
+  }
+  return { slots: slots.length, submissions: submissionCount };
+}
+
 async function main() {
   console.log('シードデータを投入します…');
   const userCount = await seedUsers();
   const productCount = await seedProducts();
+  const shiftInfo = await seedShifts();
   console.log(`\n完了:`);
   console.log(`  ユーザー: ${userCount} 名（名前は「テスト_」で始まる）`);
   console.log(`  商品: ${productCount} 件`);
+  console.log(
+    `  サンプル枠: ${shiftInfo.slots} 件（当日/研修・status=open）、提出: ${shiftInfo.submissions} 件（各枠 ○10/×2）`
+  );
   console.log(`\nテストユーザーのログインパスワード: ${SEED_PASSWORD}`);
   console.log('（テスト専用。本番データには使わないこと）');
-  console.log('\n後片付け: 名前/商品名が「テスト_」で始まる行を削除すれば元に戻せます。');
+  console.log(
+    '\n後片付け: ユーザー/商品は「テスト_」で始まる行、シフト枠は note が「[seed]」で始まる行を削除（枠を消せば対象者・提出・割り振りも CASCADE で消える）。'
+  );
 }
 
 main().catch((e) => {
