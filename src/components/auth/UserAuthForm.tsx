@@ -11,6 +11,7 @@ export default function UserAuthForm() {
   const [mode, setMode] = useState<Mode>('login');
   const [name, setName] = useState('');
   const [password, setPassword] = useState('');
+  const [inviteCode, setInviteCode] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -20,10 +21,14 @@ export default function UserAuthForm() {
     setLoading(true);
     try {
       const endpoint = mode === 'login' ? '/api/auth/login' : '/api/auth/signup';
+      const body =
+        mode === 'signup'
+          ? { name, password, inviteCode: inviteCode || undefined }
+          : { name, password };
       const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, password }),
+        body: JSON.stringify(body),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -83,9 +88,24 @@ export default function UserAuthForm() {
           />
         </label>
         {mode === 'signup' && (
-          <p className="text-xs text-gray-500">
-            名前は2〜20文字、パスワードは8文字以上。
-          </p>
+          <>
+            <label className="flex flex-col gap-1 text-sm">
+              招待コード
+              <input
+                type="text"
+                value={inviteCode}
+                onChange={(e) => setInviteCode(e.target.value)}
+                autoComplete="off"
+                className="rounded border px-3 py-2"
+              />
+              <span className="text-xs text-gray-500">
+                配布された招待コードがある場合は入力してください。
+              </span>
+            </label>
+            <p className="text-xs text-gray-500">
+              名前は2〜20文字、パスワードは8文字以上。
+            </p>
+          </>
         )}
         {error && <p className="text-sm text-red-600">{error}</p>}
         <button

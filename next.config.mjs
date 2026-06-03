@@ -4,8 +4,29 @@ import { withSerwist } from '@serwist/turbopack';
 // SW のソースは src/app/sw.ts、配信は src/app/serwist/[path]/route.ts（/serwist/sw.js）。
 // 登録は layout.tsx の <SerwistProvider> が行う。
 
+// Content-Security-Policy。
+// Next.js のハイドレーションと Tailwind のため script/style に 'unsafe-inline' を許可
+// （nonce 方式は未導入）。LIFF（static.line-scdn.net / *.line.me）と Serwist SW(self) を許可。
+// connect-src を絞り、frame-ancestors/base-uri/form-action/object-src で多層防御する。
+const csp = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://static.line-scdn.net",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob: https:",
+  "font-src 'self' data:",
+  "connect-src 'self' https://api.line.me https://*.line.me https://static.line-scdn.net",
+  "frame-src 'self' https://*.line.me",
+  "worker-src 'self'",
+  "manifest-src 'self'",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "frame-ancestors 'none'",
+].join('; ');
+
 // セキュリティヘッダー（全ルートに適用）
 const securityHeaders = [
+  { key: 'Content-Security-Policy', value: csp },
   { key: 'X-Content-Type-Options', value: 'nosniff' },
   { key: 'X-Frame-Options', value: 'DENY' },
   { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },

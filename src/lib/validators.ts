@@ -6,6 +6,8 @@ import { DAY_ROLES, TRAINING_ROLES } from '@/types';
 export const signupSchema = z.object({
   name: z.string().trim().min(2, '名前は2文字以上').max(20, '名前は20文字以内'),
   password: z.string().min(8, 'パスワードは8文字以上'),
+  // 招待コード。SIGNUP_INVITE_CODE が設定されている場合のみサーバー側で必須照合。
+  inviteCode: z.string().max(100).optional(),
 });
 export type SignupInput = z.infer<typeof signupSchema>;
 

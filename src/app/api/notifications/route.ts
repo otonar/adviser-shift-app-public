@@ -1,6 +1,6 @@
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { authenticateAdmin } from '@/lib/middleware';
-import { sendPushMessage, isLineConfigured } from '@/lib/line';
+import { sendMulticast, isLineConfigured } from '@/lib/line';
 import { notificationSchema } from '@/lib/validators';
 import { jsonError, jsonOk, parseBody, verifyOrigin, forbiddenOrigin, withRoute } from '@/lib/http';
 
@@ -44,31 +44,42 @@ async function postHandler(req: Request) {
   const { data: users, error } = await query;
   if (error) return jsonError('送信に失敗しました', 500, 'SEND_FAILED');
 
-  let sent = 0;
-  let skipped = 0;
+  const recipients = users ?? [];
+  const linked = recipients.filter((u) => u.line_user_id) as {
+    id: string;
+    line_user_id: string;
+  }[];
 
-  for (const u of users ?? []) {
-    if (!u.line_user_id) {
-      skipped++;
-      await supabase.from('notification_logs').insert({
-        user_id: u.id,
-        notification_type: type,
-        message,
-        status: 'failed',
-      });
-      continue;
+  const logs: {
+    user_id: string;
+    notification_type: typeof type;
+    message: string;
+    status: 'sent' | 'failed';
+  }[] = [];
+
+  // 同一メッセージなので 500 件ごとに multicast でまとめて送信。
+  let sent = 0;
+  const CHUNK = 500;
+  for (let i = 0; i < linked.length; i += CHUNK) {
+    const batch = linked.slice(i, i + CHUNK);
+    const ok = await sendMulticast(batch.map((u) => u.line_user_id), message);
+    if (ok) sent += batch.length;
+    for (const u of batch) {
+      logs.push({ user_id: u.id, notification_type: type, message, status: ok ? 'sent' : 'failed' });
     }
-    const ok = await sendPushMessage(u.line_user_id, message);
-    if (ok) sent++;
-    else skipped++;
-    await supabase.from('notification_logs').insert({
-      user_id: u.id,
-      notification_type: type,
-      message,
-      status: ok ? 'sent' : 'failed',
-    });
+  }
+  // LINE 未連携はスキップ（失敗ログ）
+  for (const u of recipients) {
+    if (!u.line_user_id) {
+      logs.push({ user_id: u.id, notification_type: type, message, status: 'failed' });
+    }
   }
 
+  if (logs.length > 0) {
+    await supabase.from('notification_logs').insert(logs);
+  }
+
+  const skipped = recipients.length - sent;
   return jsonOk({ ok: true, sent, skipped });
 }
 
