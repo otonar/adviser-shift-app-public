@@ -3,11 +3,11 @@ import { authenticateAdmin } from '@/lib/middleware';
 import { updateTargetsSchema } from '@/lib/validators';
 import { jsonError, jsonOk, parseBody, verifyOrigin, forbiddenOrigin, withRoute } from '@/lib/http';
 
-type Params = { params: { id: string } };
+type Params = { params: Promise<{ id: string }> };
 
 // PUT: 対象スタッフを総入れ替え（管理者）。
 async function putHandler(req: Request, { params }: Params) {
-  if (!verifyOrigin()) return forbiddenOrigin();
+  if (!(await verifyOrigin())) return forbiddenOrigin();
   const admin = await authenticateAdmin();
   if (!admin.ok) return admin.response;
 
@@ -16,7 +16,7 @@ async function putHandler(req: Request, { params }: Params) {
   const { user_ids } = parsed.data;
 
   const supabase = getSupabaseAdmin();
-  const slotId = params.id;
+  const slotId = (await params).id;
 
   // 全削除 → 新規挿入
   const { error: delError } = await supabase

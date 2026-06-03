@@ -31,7 +31,7 @@ async function getHandler() {
 
 // PATCH: 名前変更・役割設定・LINE連携/解除。
 async function patchHandler(req: Request) {
-  if (!verifyOrigin()) return forbiddenOrigin();
+  if (!(await verifyOrigin())) return forbiddenOrigin();
   const auth = await authenticateUser();
   if (!auth.ok) return auth.response;
 
@@ -70,7 +70,7 @@ async function patchHandler(req: Request) {
 
 // DELETE: 脱退（is_active=false）＋ Cookie 削除でログアウト。
 async function deleteHandler() {
-  if (!verifyOrigin()) return forbiddenOrigin();
+  if (!(await verifyOrigin())) return forbiddenOrigin();
   const auth = await authenticateUser();
   if (!auth.ok) return auth.response;
 
@@ -81,7 +81,7 @@ async function deleteHandler() {
     .eq('id', auth.userId);
   if (error) return jsonError('処理に失敗しました', 500, 'UPDATE_FAILED');
 
-  clearUserCookie();
+  await clearUserCookie();
   return jsonOk({ ok: true });
 }
 

@@ -7,17 +7,19 @@ import ShiftDetail from '@/components/admin/ShiftDetail';
 export default async function AdminShiftDetailPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
   const auth = await authenticateAdmin();
   if (!auth.ok) redirect('/admin');
+
+  const { id } = await params;
 
   return (
     <div className="flex flex-col gap-4">
       <Link href="/admin/shifts" className="text-sm text-gray-500">
         ← シフト一覧へ戻る
       </Link>
-      <ShiftDetail shiftId={params.id} />
+      <ShiftDetail shiftId={id} />
     </div>
   );
 }

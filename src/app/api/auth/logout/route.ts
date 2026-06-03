@@ -2,8 +2,8 @@ import { clearUserCookie } from '@/lib/auth';
 import { jsonOk, verifyOrigin, forbiddenOrigin, withRoute } from '@/lib/http';
 
 async function postHandler() {
-  if (!verifyOrigin()) return forbiddenOrigin();
-  clearUserCookie();
+  if (!(await verifyOrigin())) return forbiddenOrigin();
+  await clearUserCookie();
   return jsonOk({ ok: true });
 }
 

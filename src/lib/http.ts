@@ -48,8 +48,8 @@ export async function parseBody<T>(
  * 一致することを検証する（SameSite Cookie と併用）。
  * Origin が無い／不一致なら false。
  */
-export function verifyOrigin(): boolean {
-  const h = headers();
+export async function verifyOrigin(): Promise<boolean> {
+  const h = await headers();
   const origin = h.get('origin');
   const host = h.get('host');
   if (!origin || !host) return false;

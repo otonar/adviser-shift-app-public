@@ -23,7 +23,7 @@ async function getHandler() {
 // POST: LINE 通知の一斉送信（管理者）。
 // line_user_id が NULL のユーザーはスキップ。送信結果は notification_logs に記録。
 async function postHandler(req: Request) {
-  if (!verifyOrigin()) return forbiddenOrigin();
+  if (!(await verifyOrigin())) return forbiddenOrigin();
   const admin = await authenticateAdmin();
   if (!admin.ok) return admin.response;
 

@@ -4,11 +4,11 @@ import { submissionSchema } from '@/lib/validators';
 import { isExpired } from '@/lib/datetime';
 import { jsonError, jsonOk, parseBody, verifyOrigin, forbiddenOrigin, withRoute } from '@/lib/http';
 
-type Params = { params: { id: string } };
+type Params = { params: Promise<{ id: string }> };
 
 // POST: シフト希望の提出・更新（一般スタッフ）。
 async function postHandler(req: Request, { params }: Params) {
-  if (!verifyOrigin()) return forbiddenOrigin();
+  if (!(await verifyOrigin())) return forbiddenOrigin();
   const auth = await authenticateUser();
   if (!auth.ok) return auth.response;
 
@@ -17,7 +17,7 @@ async function postHandler(req: Request, { params }: Params) {
   const { available, note } = parsed.data;
 
   const supabase = getSupabaseAdmin();
-  const slotId = params.id;
+  const slotId = (await params).id;
 
   // 対象スタッフかどうか
   const { data: target } = await supabase
