@@ -1,7 +1,8 @@
-/// <reference types="@serwist/next/typings" />
-// PWA Service Worker（@serwist/next）。next.config.mjs の swSrc から参照され、
-// ビルド時に public/sw.js へコンパイル・登録される。
-import { defaultCache } from '@serwist/next/worker';
+/// <reference lib="esnext" />
+/// <reference lib="webworker" />
+// PWA Service Worker（@serwist/turbopack）。serwist/[path]/route.ts の swSrc から
+// 参照され、esbuild でコンパイルして /serwist/sw.js として配信される。
+import { defaultCache } from '@serwist/turbopack/worker';
 import type { PrecacheEntry, SerwistGlobalConfig } from 'serwist';
 import { Serwist } from 'serwist';
 

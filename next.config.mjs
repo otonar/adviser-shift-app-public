@@ -1,16 +1,8 @@
-import { randomUUID } from 'node:crypto';
-import withSerwistInit from '@serwist/next';
+import { withSerwist } from '@serwist/turbopack';
 
-// PWA: next-pwa から @serwist/next（webpack）へ移行。
-// SW のソースは src/app/sw.ts、出力は public/sw.js。
-// オフラインフォールバック（/~offline）はビルドごとに revision を振って precache する。
-const withSerwist = withSerwistInit({
-  swSrc: 'src/app/sw.ts',
-  swDest: 'public/sw.js',
-  additionalPrecacheEntries: [{ url: '/~offline', revision: randomUUID() }],
-  // 開発中は SW を無効化（HMR との競合・キャッシュ事故を避ける）。
-  disable: process.env.NODE_ENV === 'development',
-});
+// PWA: @serwist/turbopack（Turbopack 対応）。
+// SW のソースは src/app/sw.ts、配信は src/app/serwist/[path]/route.ts（/serwist/sw.js）。
+// 登録は layout.tsx の <SerwistProvider> が行う。
 
 // セキュリティヘッダー（全ルートに適用）
 const securityHeaders = [
@@ -32,6 +24,8 @@ const securityHeaders = [
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  // 親ディレクトリにも lockfile があり workspace root を誤検出するため明示する。
+  turbopack: { root: import.meta.dirname },
   async headers() {
     return [
       {
