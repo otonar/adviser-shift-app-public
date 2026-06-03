@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { authenticateUser } from '@/lib/middleware';
 import { getSupabaseAdmin } from '@/lib/supabase';
+import { NO_ROLE } from '@/types';
 
 type Row = {
   role: string;
@@ -52,9 +53,16 @@ export default async function MyRolesPage() {
               <p className="text-sm text-gray-600">
                 {r.slot!.start_time.slice(0, 5)}〜{r.slot!.end_time.slice(0, 5)}
               </p>
-              <p className="mt-1">
-                役割: <span className="font-bold">{r.role}</span>
-              </p>
+              {r.role === NO_ROLE ? (
+                <p className="mt-1">
+                  <span className="font-bold">出勤</span>
+                  <span className="text-sm text-gray-500">（役割の指定なし）</span>
+                </p>
+              ) : (
+                <p className="mt-1">
+                  役割: <span className="font-bold">{r.role}</span>
+                </p>
+              )}
             </li>
           ))}
         </ul>

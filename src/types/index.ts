@@ -14,6 +14,10 @@ export const DAY_ROLES = [
 
 export const TRAINING_ROLES = ['コアメンバー', 'PC', '共済', '学び'] as const;
 
+// 役割は付かないが出勤する人を表す特別ラベル（shift_assignments.role に格納）。
+// 実際の役割（DAY_ROLES/TRAINING_ROLES）とは別枠で扱う。
+export const NO_ROLE = '役割なし';
+
 export type DayRole = (typeof DAY_ROLES)[number];
 export type TrainingRole = (typeof TRAINING_ROLES)[number];
 
