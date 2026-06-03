@@ -10,6 +10,11 @@ import {
 import { loginSchema } from '@/lib/validators';
 import { jsonError, jsonOk, parseBody, verifyOrigin, forbiddenOrigin, withRoute } from '@/lib/http';
 
+// ユーザー列挙のタイミング側チャネル対策用のダミーハッシュ。
+// 該当ユーザーが存在しない/非アクティブでも bcrypt 比較を行い、
+// 応答時間からユーザーの存在を推測されないようにする（値は実パスワードではない）。
+const DUMMY_HASH = '$2a$12$vG/sXb0eYkSi6WPo44W9f.pNjfr9IPg.wz2WG47PBse5.NsMENz8e';
+
 async function postHandler(req: Request) {
   if (!(await verifyOrigin())) return forbiddenOrigin();
 
@@ -27,8 +32,10 @@ async function postHandler(req: Request) {
     .eq('name', name)
     .maybeSingle();
 
-  // ユーザー列挙を避けるため、存在しない／脱退済みでも汎用メッセージで返す
+  // ユーザー列挙を避けるため、存在しない／脱退済みでも汎用メッセージで返す。
+  // さらに応答時間を揃えるためダミーハッシュで比較してから返す（タイミング側チャネル対策）。
   if (!user || !user.is_active) {
+    await bcrypt.compare(password, DUMMY_HASH);
     return jsonError('名前またはパスワードが正しくありません', 401, 'INVALID_CREDENTIALS');
   }
 
