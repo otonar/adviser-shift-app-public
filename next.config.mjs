@@ -1,15 +1,15 @@
-const withPWA = require('@ducanh2912/next-pwa').default({
-  dest: 'public',
-  // 開発中は Service Worker を無効化（HMR との競合・キャッシュ事故を避ける）
+import { randomUUID } from 'node:crypto';
+import withSerwistInit from '@serwist/next';
+
+// PWA: next-pwa から @serwist/next（webpack）へ移行。
+// SW のソースは src/app/sw.ts、出力は public/sw.js。
+// オフラインフォールバック（/~offline）はビルドごとに revision を振って precache する。
+const withSerwist = withSerwistInit({
+  swSrc: 'src/app/sw.ts',
+  swDest: 'public/sw.js',
+  additionalPrecacheEntries: [{ url: '/~offline', revision: randomUUID() }],
+  // 開発中は SW を無効化（HMR との競合・キャッシュ事故を避ける）。
   disable: process.env.NODE_ENV === 'development',
-  register: true,
-  // オフライン時、キャッシュ外のページは src/app/~offline を表示する
-  fallbacks: {
-    document: '/~offline',
-  },
-  workboxOptions: {
-    skipWaiting: true,
-  },
 });
 
 // セキュリティヘッダー（全ルートに適用）
@@ -42,4 +42,4 @@ const nextConfig = {
   },
 };
 
-module.exports = withPWA(nextConfig);
+export default withSerwist(nextConfig);
