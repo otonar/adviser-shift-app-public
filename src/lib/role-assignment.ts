@@ -1,5 +1,5 @@
 import type { SlotType } from '@/types';
-import { DAY_ROLES, TRAINING_ROLES } from '@/types';
+import { DAY_ROLES, TRAINING_ROLES, NO_ROLE } from '@/types';
 
 /**
  * slot_type に対応する役割一覧を返す。
@@ -16,6 +16,8 @@ export function rolesForSlotType(slotType: SlotType): readonly string[] {
  *  2. slot_type に応じた役割属性（dayRoles / trainingRoles）を参照
  *  3. 「担当可能人数が少ない順」に役割をソート（希少な役割から先に割り当て）
  *  4. 各役割について対応可能なユーザーからランダムに必要人数を選出（1人1役割）
+ *  5. 役割が付かなかった available ユーザーも「役割なし」で出勤扱いにする
+ *     （役割の指定はないが当日来る人を名簿・通知から漏らさないため）
  */
 export function assignRoles(
   slotType: SlotType,
@@ -69,6 +71,14 @@ export function assignRoles(
     for (const userId of selected) {
       assigned.add(userId);
       result.push({ userId, role: req.role });
+    }
+  }
+
+  // 5. 役割が付かなかった available ユーザーを「役割なし」で出勤扱いにする。
+  for (const u of users) {
+    if (availableUserIds.has(u.userId) && !assigned.has(u.userId)) {
+      assigned.add(u.userId);
+      result.push({ userId: u.userId, role: NO_ROLE });
     }
   }
 

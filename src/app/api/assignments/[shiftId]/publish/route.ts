@@ -1,6 +1,7 @@
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { authenticateAdmin } from '@/lib/middleware';
 import { sendPushMessage } from '@/lib/line';
+import { NO_ROLE } from '@/types';
 import { jsonError, jsonOk, verifyOrigin, forbiddenOrigin, withRoute } from '@/lib/http';
 
 type Params = { params: Promise<{ shiftId: string }> };
@@ -46,7 +47,10 @@ async function postHandler(_req: Request, { params }: Params) {
   for (const a of assignments ?? []) {
     const u = Array.isArray(a.users) ? a.users[0] : a.users;
     const lineUserId = u?.line_user_id ?? null;
-    const message = `シフト確定: ${slot.date} ${startHm}〜${endHm} あなたの役割は「${a.role}」です`;
+    const message =
+      a.role === NO_ROLE
+        ? `シフト確定: ${slot.date} ${startHm}〜${endHm} 出勤です（役割の指定はありません）`
+        : `シフト確定: ${slot.date} ${startHm}〜${endHm} あなたの役割は「${a.role}」です`;
 
     if (!lineUserId) {
       skipped++;

@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import type { SlotType } from '@/types';
+import { NO_ROLE } from '@/types';
 import { rolesForSlotType } from '@/lib/role-assignment';
 import TargetUserSelector, {
   type SelectableUser,
@@ -429,7 +430,7 @@ export default function ShiftDetail({ shiftId }: { shiftId: string }) {
                           }}
                           className="rounded border px-2 py-1"
                         >
-                          {roles.map((r) => (
+                          {[...roles, NO_ROLE].map((r) => (
                             <option key={r} value={r}>
                               {r}
                             </option>
