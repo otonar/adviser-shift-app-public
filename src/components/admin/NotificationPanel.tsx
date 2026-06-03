@@ -53,8 +53,9 @@ export default function NotificationPanel() {
   }, []);
 
   useEffect(() => {
-    loadMembers();
-    loadLogs();
+    void (async () => {
+      await Promise.all([loadMembers(), loadLogs()]);
+    })();
   }, [loadMembers, loadLogs]);
 
   function toggle(id: string) {

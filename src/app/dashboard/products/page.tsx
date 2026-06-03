@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 
 type Product = {
   id: string;
@@ -16,25 +16,27 @@ export default function StaffProductsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    try {
-      const res = await fetch('/api/products?scope=mine');
-      if (!res.ok) {
-        setError('読み込みに失敗しました');
-        return;
-      }
-      const data = await res.json();
-      setProducts(data.products ?? []);
-    } catch {
-      setError('通信エラーが発生しました');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
   useEffect(() => {
-    load();
-  }, [load]);
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/products?scope=mine');
+        if (!res.ok) {
+          if (!cancelled) setError('読み込みに失敗しました');
+          return;
+        }
+        const data = await res.json();
+        if (!cancelled) setProducts(data.products ?? []);
+      } catch {
+        if (!cancelled) setError('通信エラーが発生しました');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <div className="flex flex-col gap-4">
