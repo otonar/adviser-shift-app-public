@@ -1,16 +1,8 @@
-const withPWA = require('@ducanh2912/next-pwa').default({
-  dest: 'public',
-  // 開発中は Service Worker を無効化（HMR との競合・キャッシュ事故を避ける）
-  disable: process.env.NODE_ENV === 'development',
-  register: true,
-  // オフライン時、キャッシュ外のページは src/app/~offline を表示する
-  fallbacks: {
-    document: '/~offline',
-  },
-  workboxOptions: {
-    skipWaiting: true,
-  },
-});
+import { withSerwist } from '@serwist/turbopack';
+
+// PWA: @serwist/turbopack（Turbopack 対応）。
+// SW のソースは src/app/sw.ts、配信は src/app/serwist/[path]/route.ts（/serwist/sw.js）。
+// 登録は layout.tsx の <SerwistProvider> が行う。
 
 // セキュリティヘッダー（全ルートに適用）
 const securityHeaders = [
@@ -32,6 +24,8 @@ const securityHeaders = [
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  // 親ディレクトリにも lockfile があり workspace root を誤検出するため明示する。
+  turbopack: { root: import.meta.dirname },
   async headers() {
     return [
       {
@@ -42,4 +36,4 @@ const nextConfig = {
   },
 };
 
-module.exports = withPWA(nextConfig);
+export default withSerwist(nextConfig);

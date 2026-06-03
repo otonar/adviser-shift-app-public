@@ -1,5 +1,9 @@
 import type { Metadata, Viewport } from 'next';
+import { SerwistProvider } from '@serwist/turbopack/react';
 import './globals.css';
+
+// SW 登録は本番のみ（開発中は HMR との競合・キャッシュ事故を避けるため無効）。
+const swEnabled = process.env.NODE_ENV === 'production';
 
 export const metadata: Metadata = {
   title: 'シフト管理',
@@ -26,7 +30,11 @@ export default function RootLayout({
   return (
     <html lang="ja">
       <body className="min-h-screen bg-gray-50 text-gray-900 antialiased">
-        {children}
+        {swEnabled ? (
+          <SerwistProvider swUrl="/serwist/sw.js">{children}</SerwistProvider>
+        ) : (
+          children
+        )}
       </body>
     </html>
   );
