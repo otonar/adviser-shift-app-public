@@ -134,17 +134,22 @@ function BulkSubmit({ slots, onSaved }: { slots: Slot[]; onSaved: () => void }) 
   // 期限内の枠だけ対象（期限切れは編集不可）
   const openSlots = useMemo(() => slots.filter((s) => !s.expired), [slots]);
 
-  const [choices, setChoices] = useState<Record<string, boolean | null>>({});
+  const [choices, setChoices] = useState<Record<string, boolean | null>>(() =>
+    Object.fromEntries(openSlots.map((s) => [s.id, s.submission?.available ?? null]))
+  );
   const [saving, setSaving] = useState(false);
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // 読み込み（onSaved 後の再取得含む）のたびに現在の提出状況で初期化
-  useEffect(() => {
+  // openSlots が変わったら（再読込・onSaved 後）現在の提出状況で choices を作り直す。
+  // 派生 state の更新は effect ではなくレンダー中に行う（React 推奨パターン）。
+  const [prevOpenSlots, setPrevOpenSlots] = useState(openSlots);
+  if (openSlots !== prevOpenSlots) {
+    setPrevOpenSlots(openSlots);
     setChoices(
       Object.fromEntries(openSlots.map((s) => [s.id, s.submission?.available ?? null]))
     );
-  }, [openSlots]);
+  }
 
   function setAll(value: boolean) {
     setChoices(Object.fromEntries(openSlots.map((s) => [s.id, value])));
@@ -294,7 +299,9 @@ export default function StaffShiftsPage() {
   }, []);
 
   useEffect(() => {
-    load();
+    void (async () => {
+      await load();
+    })();
   }, [load]);
 
   return (

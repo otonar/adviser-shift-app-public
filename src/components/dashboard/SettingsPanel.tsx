@@ -62,7 +62,9 @@ export default function SettingsPanel({ liffId }: { liffId: string | null }) {
   }, []);
 
   useEffect(() => {
-    load();
+    void (async () => {
+      await load();
+    })();
   }, [load]);
 
   if (loading) return <p className="text-sm text-gray-500">読み込み中…</p>;

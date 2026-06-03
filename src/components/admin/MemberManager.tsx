@@ -34,7 +34,9 @@ export default function MemberManager() {
   }, []);
 
   useEffect(() => {
-    load();
+    void (async () => {
+      await load();
+    })();
   }, [load]);
 
   async function setActive(member: Member, isActive: boolean) {

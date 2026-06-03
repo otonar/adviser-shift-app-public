@@ -86,7 +86,9 @@ export default function ShiftDetail({ shiftId }: { shiftId: string }) {
   }, [shiftId, router]);
 
   useEffect(() => {
-    load();
+    void (async () => {
+      await load();
+    })();
   }, [load]);
 
   async function call(url: string, method: string, body?: unknown) {

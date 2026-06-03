@@ -41,7 +41,9 @@ export default function ProductManager() {
   }, []);
 
   useEffect(() => {
-    load();
+    void (async () => {
+      await load();
+    })();
   }, [load]);
 
   return (

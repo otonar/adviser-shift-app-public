@@ -60,7 +60,9 @@ export default function AdminShifts() {
   }, []);
 
   useEffect(() => {
-    load();
+    void (async () => {
+      await load();
+    })();
   }, [load]);
 
   async function createSlot(e: React.FormEvent) {
