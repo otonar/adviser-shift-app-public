@@ -4,6 +4,14 @@
 .env.production
 .env.*.local
 
+# 内部資料（ローカルのみで管理・GitHub には上げない）
+# docs/ 一式・仕様プロンプト・企画書・CLAUDE.md は公開リポジトリに含めない。
+docs/
+shift-app-prompt.md
+CLAUDE.md
+*.pdf
+*.docx
+
 # 依存関係
 node_modules/
 

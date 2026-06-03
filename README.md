@@ -15,8 +15,8 @@ LINE 公式アカウント経由の通知機能付き。
 
 ## 技術スタック
 
-- Next.js 14 (App Router) + TypeScript
-- Tailwind CSS / @ducanh2912/next-pwa
+- Next.js 16 (App Router, Turbopack) + React 19 + TypeScript
+- Tailwind CSS / PWA: @serwist/turbopack
 - Supabase (PostgreSQL) / 自前 JWT 認証 (bcryptjs + jsonwebtoken + httpOnly Cookie)
 - zod / LINE Messaging API / Vercel
 
@@ -29,19 +29,12 @@ npm run dev
 ```
 
 DB は `supabase/migrations/001_initial_schema.sql` を Supabase の SQL Editor で実行する。
-詳細な手順・環境変数の取得先は [docs/SETUP.md](docs/SETUP.md) を参照。
+環境変数のキーは `.env.local.example` を参照（値は各自で設定）。
 
 ## ドキュメント
 
-- [SETUP — 環境構築・実行方法](docs/SETUP.md)
-- [USAGE — 使用方法（スタッフ / 管理者）](docs/USAGE.md)
-- [TEST_CHECKLIST — 実地テスト手順](docs/TEST_CHECKLIST.md)
-- [CAUTION — 使用上の注意事項](docs/CAUTION.md)
-- [ARCHITECTURE — ファイル構成・アーキテクチャ](docs/ARCHITECTURE.md)
-- [DESIGN_DECISIONS — 課題分析・技術選定](docs/DESIGN_DECISIONS.md)
-- [DEVELOPMENT_NOTES — 開発ノート（進捗ログ）](docs/DEVELOPMENT_NOTES.md)
-- [ROADMAP — 今後の展望](docs/ROADMAP.md)
-- [IMPLEMENTATION_PLAN — 実装計画](docs/IMPLEMENTATION_PLAN.md)
+設計・運用の詳細ドキュメント（SETUP / USAGE / ARCHITECTURE / 開発ノート 等）は
+リポジトリ外でローカル管理しています（公開対象外）。
 
 ## ライセンス
 
