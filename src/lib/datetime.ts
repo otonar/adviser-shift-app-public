@@ -26,3 +26,34 @@ export function computeDeadline(date: string): string {
 export function isExpired(deadline: string): boolean {
   return new Date(deadline).getTime() < Date.now();
 }
+
+/**
+ * JST における今日の日付 'YYYY-MM-DD'。
+ */
+export function todayJst(): string {
+  // UTC 時刻に +9h して JST の暦日を取り出す（DST のない JST なので単純加算で安全）。
+  const jst = new Date(Date.now() + 9 * 60 * 60 * 1000);
+  const yy = jst.getUTCFullYear();
+  const mm = String(jst.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(jst.getUTCDate()).padStart(2, '0');
+  return `${yy}-${mm}-${dd}`;
+}
+
+/**
+ * シフト並べ替え用の比較関数。
+ * 1次: 今日以降（未来）のシフトを上に、過ぎたシフト（today より前）を下に。
+ * 2次: 同グループ内は日付の古い順、同日内は開始時刻の早い順。
+ * → 「次のシフト」が一番上、過ぎたシフトは末尾にまとまる。
+ */
+export function compareSlotsUpcomingFirst(
+  a: { date: string; start_time: string },
+  b: { date: string; start_time: string },
+  today: string = todayJst()
+): number {
+  const aPast = a.date < today;
+  const bPast = b.date < today;
+  if (aPast !== bPast) return aPast ? 1 : -1; // 過ぎたシフトは後ろへ
+  if (a.date !== b.date) return a.date < b.date ? -1 : 1; // 日付の古い順
+  // 同じ日付内は開始時刻の早い順
+  return a.start_time < b.start_time ? -1 : a.start_time > b.start_time ? 1 : 0;
+}

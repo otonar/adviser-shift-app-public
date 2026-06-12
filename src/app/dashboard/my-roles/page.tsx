@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { authenticateUser } from '@/lib/middleware';
 import { getSupabaseAdmin } from '@/lib/supabase';
+import { compareSlotsUpcomingFirst } from '@/lib/datetime';
 import { NO_ROLE } from '@/types';
 
 type Row = {
@@ -34,7 +35,8 @@ export default async function MyRolesPage() {
 
   const published = rows
     .filter((r) => r.slot && r.slot.assignment_status === 'published')
-    .sort((a, b) => (a.slot!.date < b.slot!.date ? -1 : 1));
+    // 未来のシフトを上（次のシフトが先頭）・過ぎたシフトを下、同日内は開始時刻順
+    .sort((a, b) => compareSlotsUpcomingFirst(a.slot!, b.slot!));
 
   return (
     <div className="flex flex-col gap-4">
