@@ -1,5 +1,10 @@
 import { z } from 'zod';
-import { DAY_ROLES, TRAINING_ROLES } from '@/types';
+import {
+  DAY_ROLES,
+  TRAINING_ROLES,
+  SUGGESTION_CATEGORIES,
+  SUGGESTION_TYPES,
+} from '@/types';
 
 // 全 API Route Handler はここで定義した zod スキーマでバリデーションする。
 
@@ -146,6 +151,28 @@ export const updateProductSchema = z
     message: '更新項目がありません',
   });
 export type UpdateProductInput = z.infer<typeof updateProductSchema>;
+
+// ===== 目安箱（投稿） =====
+
+export const createSuggestionSchema = z.object({
+  category: z.enum(SUGGESTION_CATEGORIES),
+  type: z.enum(SUGGESTION_TYPES),
+  show_name: z.boolean(),
+  scope: z.enum(['all', 'core']),
+  content: z
+    .string()
+    .trim()
+    .min(1, '内容は必須です')
+    .max(2000, '内容は2000文字以内'),
+});
+export type CreateSuggestionInput = z.infer<typeof createSuggestionSchema>;
+
+export const updateSuggestionStatusSchema = z.object({
+  status: z.enum(['open', 'done']),
+});
+export type UpdateSuggestionStatusInput = z.infer<
+  typeof updateSuggestionStatusSchema
+>;
 
 // ===== ユーザー設定（自分） =====
 

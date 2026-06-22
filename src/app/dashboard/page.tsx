@@ -25,6 +25,12 @@ export default function Dashboard() {
           商品情報
         </Link>
         <Link
+          href="/dashboard/suggestions"
+          className="rounded border bg-white p-4 text-center"
+        >
+          目安箱
+        </Link>
+        <Link
           href="/dashboard/settings"
           className="rounded border bg-white p-4 text-center"
         >

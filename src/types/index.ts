@@ -21,6 +21,29 @@ export const NO_ROLE = '役割なし';
 export type DayRole = (typeof DAY_ROLES)[number];
 export type TrainingRole = (typeof TRAINING_ROLES)[number];
 
+// =====================
+// 目安箱（スタッフからの投稿）
+// =====================
+export const SUGGESTION_CATEGORIES = [
+  '商品について',
+  '業務について',
+  '人間関係について',
+  'このアプリについて',
+  'その他',
+] as const;
+
+export const SUGGESTION_TYPES = ['質問', '意見', '相談', 'その他'] as const;
+
+// コアメンバー判定に使う研修役割ラベル（scope='core' の閲覧可否に使用）。
+export const CORE_ROLE = 'コアメンバー';
+
+export type SuggestionCategory = (typeof SUGGESTION_CATEGORIES)[number];
+export type SuggestionType = (typeof SUGGESTION_TYPES)[number];
+// 閲覧範囲: 'all' = 全スタッフ / 'core' = コアメンバーのみ（管理者は常に全件閲覧可）
+export type SuggestionScope = 'all' | 'core';
+// 'open' = 未対応 / 'done' = 対応済み
+export type SuggestionStatus = 'open' | 'done';
+
 export type SlotType = 'day' | 'training';
 export type AssignmentStatus = 'open' | 'draft' | 'published';
 export type NotificationType =
@@ -97,6 +120,19 @@ export interface Product {
   category: string | null;
   stock: number;
   is_visible: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Suggestion {
+  id: string;
+  user_id: string | null; // 名前非表示でも保存する（画面には出さない）
+  category: string;
+  type: string;
+  show_name: boolean; // true=投稿者名を表示 / false=非表示
+  scope: SuggestionScope;
+  content: string;
+  status: SuggestionStatus;
   created_at: string;
   updated_at: string;
 }

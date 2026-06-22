@@ -9,6 +9,7 @@ const links = [
   { href: '/admin/products', label: '商品' },
   { href: '/admin/members', label: 'メンバー' },
   { href: '/admin/notifications', label: '通知' },
+  { href: '/admin/suggestions', label: '目安箱' },
 ];
 
 export default function AdminSidebar() {

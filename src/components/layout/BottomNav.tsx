@@ -7,6 +7,7 @@ const tabs = [
   { href: '/dashboard/shifts', label: 'シフト' },
   { href: '/dashboard/my-roles', label: '役割' },
   { href: '/dashboard/products', label: '商品' },
+  { href: '/dashboard/suggestions', label: '目安箱' },
   { href: '/dashboard/settings', label: '設定' },
 ];
 
