@@ -29,7 +29,7 @@ async function getHandler() {
   });
 }
 
-// PATCH: 名前変更・役割設定・LINE連携/解除。
+// PATCH: 名前変更・LINE連携/解除。役割は本人では変更できない（管理者のみ）。
 async function patchHandler(req: Request) {
   if (!(await verifyOrigin())) return forbiddenOrigin();
   const auth = await authenticateUser();
@@ -37,7 +37,7 @@ async function patchHandler(req: Request) {
 
   const parsed = await parseBody(req, updateMeSchema);
   if (!parsed.ok) return parsed.response;
-  const { name, day_roles, training_roles, line_user_id } = parsed.data;
+  const { name, line_user_id } = parsed.data;
 
   const supabase = getSupabaseAdmin();
 
@@ -54,8 +54,6 @@ async function patchHandler(req: Request) {
 
   const update: Record<string, unknown> = {};
   if (name !== undefined) update.name = name;
-  if (day_roles !== undefined) update.day_roles = day_roles;
-  if (training_roles !== undefined) update.training_roles = training_roles;
   if (line_user_id !== undefined) update.line_user_id = line_user_id;
   update.updated_at = new Date().toISOString();
 
