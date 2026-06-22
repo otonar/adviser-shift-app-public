@@ -133,6 +133,8 @@ export interface Suggestion {
   scope: SuggestionScope;
   content: string;
   status: SuggestionStatus;
+  admin_reply: string | null; // 管理者からの返答（1件・編集可）
+  replied_at: string | null;
   created_at: string;
   updated_at: string;
 }

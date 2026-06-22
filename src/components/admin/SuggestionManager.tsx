@@ -10,6 +10,7 @@ type Suggestion = {
   scope: 'all' | 'core';
   content: string;
   status: 'open' | 'done';
+  admin_reply: string | null;
   created_at: string;
   author_name: string | null;
 };
@@ -185,6 +186,8 @@ function SuggestionCard({
         ・ {formatDateJst(suggestion.created_at)}
       </p>
 
+      <ReplyEditor suggestion={suggestion} onChanged={onChanged} />
+
       <div className="mt-3 flex items-center gap-2">
         {done ? (
           <button
@@ -216,5 +219,121 @@ function SuggestionCard({
         {error && <span className="text-xs text-red-600">{error}</span>}
       </div>
     </article>
+  );
+}
+
+// 管理者からの返答（1件・編集可）。保存するとサーバー側で status が done になる。
+function ReplyEditor({
+  suggestion,
+  onChanged,
+}: {
+  suggestion: Suggestion;
+  onChanged: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [text, setText] = useState(suggestion.admin_reply ?? '');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function send(reply: string | null) {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/suggestions/${suggestion.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ admin_reply: reply }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error ?? '保存に失敗しました');
+        return;
+      }
+      setEditing(false);
+      onChanged();
+    } catch {
+      setError('通信エラーが発生しました');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!editing) {
+    return (
+      <div className="mt-3 rounded bg-blue-50 p-3">
+        {suggestion.admin_reply ? (
+          <>
+            <p className="text-xs font-bold text-blue-800">運営からの返答</p>
+            <p className="mt-1 whitespace-pre-wrap text-sm text-gray-800">
+              {suggestion.admin_reply}
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setText(suggestion.admin_reply ?? '');
+                setEditing(true);
+              }}
+              className="mt-2 rounded border px-3 py-1 text-xs"
+            >
+              返答を編集
+            </button>
+          </>
+        ) : (
+          <button
+            type="button"
+            onClick={() => {
+              setText('');
+              setEditing(true);
+            }}
+            className="rounded border px-3 py-1 text-xs"
+          >
+            返答する
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-3 rounded bg-blue-50 p-3">
+      <p className="text-xs font-bold text-blue-800">返答（保存すると対応済みになります）</p>
+      <textarea
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        rows={3}
+        maxLength={2000}
+        placeholder="返答を入力してください"
+        className="mt-1 w-full rounded border px-3 py-2 text-sm"
+      />
+      <div className="mt-2 flex items-center gap-2">
+        <button
+          type="button"
+          disabled={busy || !text.trim()}
+          onClick={() => send(text)}
+          className="rounded border bg-gray-900 px-3 py-1 text-xs text-white disabled:opacity-50"
+        >
+          {busy ? '保存中…' : '保存'}
+        </button>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => setEditing(false)}
+          className="rounded border px-3 py-1 text-xs disabled:opacity-50"
+        >
+          取消
+        </button>
+        {suggestion.admin_reply && (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => send(null)}
+            className="rounded border border-red-300 px-3 py-1 text-xs text-red-700 disabled:opacity-50"
+          >
+            返答を削除
+          </button>
+        )}
+        {error && <span className="text-xs text-red-600">{error}</span>}
+      </div>
+    </div>
   );
 }

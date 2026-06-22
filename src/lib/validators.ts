@@ -167,12 +167,17 @@ export const createSuggestionSchema = z.object({
 });
 export type CreateSuggestionInput = z.infer<typeof createSuggestionSchema>;
 
-export const updateSuggestionStatusSchema = z.object({
-  status: z.enum(['open', 'done']),
-});
-export type UpdateSuggestionStatusInput = z.infer<
-  typeof updateSuggestionStatusSchema
->;
+// 管理者による更新: ステータス変更 / 返答の保存・編集・削除。
+// admin_reply は null または空文字で「返答を削除」とみなす。
+export const updateSuggestionSchema = z
+  .object({
+    status: z.enum(['open', 'done']).optional(),
+    admin_reply: z.string().trim().max(2000, '返答は2000文字以内').nullable().optional(),
+  })
+  .refine((v) => Object.keys(v).length > 0, {
+    message: '更新項目がありません',
+  });
+export type UpdateSuggestionInput = z.infer<typeof updateSuggestionSchema>;
 
 // ===== ユーザー設定（自分） =====
 

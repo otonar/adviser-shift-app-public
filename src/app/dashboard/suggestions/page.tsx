@@ -16,6 +16,7 @@ type PublicSuggestion = {
   scope: SuggestionScope;
   content: string;
   status: 'open' | 'done';
+  admin_reply: string | null;
   created_at: string;
   author_name: string | null;
 };
@@ -96,6 +97,14 @@ export default function StaffSuggestionsPage() {
             <p className="mt-2 text-xs text-gray-400">
               {s.author_name ?? '（名前非表示）'} ・ {formatDateJst(s.created_at)}
             </p>
+            {s.admin_reply && (
+              <div className="mt-3 rounded bg-blue-50 p-3">
+                <p className="text-xs font-bold text-blue-800">運営からの返答</p>
+                <p className="mt-1 whitespace-pre-wrap text-sm text-gray-800">
+                  {s.admin_reply}
+                </p>
+              </div>
+            )}
           </article>
         ))}
       </section>

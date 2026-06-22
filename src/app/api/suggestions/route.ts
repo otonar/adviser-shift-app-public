@@ -29,7 +29,7 @@ async function getHandler(req: Request) {
       const supabase = getSupabaseAdmin();
       const { data, error } = await supabase
         .from('suggestions')
-        .select('id, category, type, show_name, scope, content, status, created_at, user_id')
+        .select('id, category, type, show_name, scope, content, status, admin_reply, replied_at, created_at, user_id')
         .order('created_at', { ascending: false });
       if (error) return jsonError('取得に失敗しました', 500, 'FETCH_FAILED');
       const rows = data ?? [];
@@ -45,6 +45,8 @@ async function getHandler(req: Request) {
         scope: r.scope,
         content: r.content,
         status: r.status,
+        admin_reply: r.admin_reply,
+        replied_at: r.replied_at,
         created_at: r.created_at,
         author_name: r.show_name ? (names.get(r.user_id) ?? null) : null,
       }));
@@ -68,7 +70,7 @@ async function getHandler(req: Request) {
 
   const { data, error } = await supabase
     .from('suggestions')
-    .select('id, category, type, show_name, scope, content, status, created_at, user_id')
+    .select('id, category, type, show_name, scope, content, status, admin_reply, replied_at, created_at, user_id')
     .in('scope', scopes)
     .order('created_at', { ascending: false });
   if (error) return jsonError('取得に失敗しました', 500, 'FETCH_FAILED');
@@ -84,6 +86,8 @@ async function getHandler(req: Request) {
     scope: r.scope,
     content: r.content,
     status: r.status,
+    admin_reply: r.admin_reply,
+    replied_at: r.replied_at,
     created_at: r.created_at,
     author_name: r.show_name ? (names.get(r.user_id) ?? null) : null,
   }));

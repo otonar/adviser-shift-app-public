@@ -1,25 +1,37 @@
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { authenticateAdmin } from '@/lib/middleware';
-import { updateSuggestionStatusSchema } from '@/lib/validators';
+import { updateSuggestionSchema } from '@/lib/validators';
 import { jsonError, jsonOk, parseBody, verifyOrigin, forbiddenOrigin, withRoute } from '@/lib/http';
 
 type Params = { params: Promise<{ id: string }> };
 
-// PATCH: 対応ステータスの更新（管理者）。未対応(open)/対応済み(done)。
+// PATCH: ステータス更新 / 返答の保存・削除（管理者）。
+// 返答（admin_reply）を保存すると status は自動で done になる。空/null は返答削除。
 async function patchHandler(req: Request, { params }: Params) {
   if (!(await verifyOrigin())) return forbiddenOrigin();
   const admin = await authenticateAdmin();
   if (!admin.ok) return admin.response;
 
-  const parsed = await parseBody(req, updateSuggestionStatusSchema);
+  const parsed = await parseBody(req, updateSuggestionSchema);
   if (!parsed.ok) return parsed.response;
+
+  const now = new Date().toISOString();
+  const update: Record<string, unknown> = { updated_at: now };
+  if (parsed.data.status !== undefined) update.status = parsed.data.status;
+  if (parsed.data.admin_reply !== undefined) {
+    const reply = parsed.data.admin_reply ? parsed.data.admin_reply : null;
+    update.admin_reply = reply;
+    update.replied_at = reply ? now : null;
+    // 返答を書いたら自動で対応済みにする（削除時は status を変えない）
+    if (reply) update.status = 'done';
+  }
 
   const supabase = getSupabaseAdmin();
   const { data, error } = await supabase
     .from('suggestions')
-    .update({ status: parsed.data.status, updated_at: new Date().toISOString() })
+    .update(update)
     .eq('id', (await params).id)
-    .select('id, status')
+    .select('id, status, admin_reply, replied_at')
     .maybeSingle();
   if (error) return jsonError('更新に失敗しました', 500, 'UPDATE_FAILED');
   if (!data) return jsonError('投稿が見つかりません', 404, 'NOT_FOUND');
