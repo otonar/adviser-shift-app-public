@@ -28,7 +28,7 @@ async function getHandler(req: Request) {
   const supabase = getSupabaseAdmin();
   const { data, error } = await supabase
     .from('products')
-    .select('id, name, description, category, stock')
+    .select('id, name, description, category, stock, stock_updated_at')
     .eq('is_visible', true)
     .order('name', { ascending: true });
   if (error) return jsonError('取得に失敗しました', 500, 'FETCH_FAILED');

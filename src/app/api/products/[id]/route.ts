@@ -14,8 +14,13 @@ async function patchHandler(req: Request, { params }: Params) {
   const parsed = await parseBody(req, updateProductSchema);
   if (!parsed.ok) return parsed.response;
 
+  const now = new Date().toISOString();
   const update: Record<string, unknown> = { ...parsed.data };
-  update.updated_at = new Date().toISOString();
+  update.updated_at = now;
+  // 在庫数が送られたときだけ在庫鮮度を更新する（名前等の編集では更新しない）。
+  if (parsed.data.stock !== undefined) {
+    update.stock_updated_at = now;
+  }
 
   const supabase = getSupabaseAdmin();
   const { data, error } = await supabase

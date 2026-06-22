@@ -39,6 +39,47 @@ export function todayJst(): string {
   return `${yy}-${mm}-${dd}`;
 }
 
+// 在庫数が「古い情報」とみなされるまでの時間（ミリ秒）。これを超えると注意表示を出す。
+export const STOCK_STALE_THRESHOLD_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * 在庫の更新日時を表示用に整形する。
+ * 絶対時刻（JST）＋相対表現（「3時間前」など）を返し、古い場合は stale=true。
+ * クライアントの描画時に呼ぶ前提（相対表現は閲覧時点基準）。
+ * @param iso stock_updated_at の ISO 文字列（null なら不明扱い）
+ */
+export function formatStockFreshness(iso: string | null | undefined): {
+  text: string;
+  relative: string;
+  stale: boolean;
+} {
+  if (!iso) return { text: '更新日時 不明', relative: '不明', stale: true };
+  const d = new Date(iso);
+  const diff = Date.now() - d.getTime();
+  const stale = diff >= STOCK_STALE_THRESHOLD_MS;
+  const abs = new Intl.DateTimeFormat('ja-JP', {
+    timeZone: 'Asia/Tokyo',
+    month: 'numeric',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(d);
+  const relative = relativeTimeJa(diff);
+  return { text: `${abs}（${relative}）`, relative, stale };
+}
+
+// 経過ミリ秒を「たった今 / N分前 / N時間前 / N日前」に変換する（未来は「まもなく」）。
+function relativeTimeJa(diffMs: number): string {
+  if (diffMs < 0) return 'まもなく';
+  const min = Math.floor(diffMs / 60000);
+  if (min < 1) return 'たった今';
+  if (min < 60) return `${min}分前`;
+  const hour = Math.floor(min / 60);
+  if (hour < 24) return `${hour}時間前`;
+  const day = Math.floor(hour / 24);
+  return `${day}日前`;
+}
+
 /**
  * シフト並べ替え用の比較関数。
  * 1次: 今日以降（未来）のシフトを上に、過ぎたシフト（today より前）を下に。

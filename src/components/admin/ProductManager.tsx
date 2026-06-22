@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import { formatStockFreshness } from '@/lib/datetime';
 
 type Product = {
   id: string;
@@ -9,6 +10,7 @@ type Product = {
   category: string | null;
   stock: number;
   is_visible: boolean;
+  stock_updated_at: string | null;
 };
 
 const empty = {
@@ -62,6 +64,7 @@ export default function ProductManager() {
                 <th className="px-3 py-2">商品名</th>
                 <th className="px-3 py-2">カテゴリ</th>
                 <th className="px-3 py-2">在庫</th>
+                <th className="px-3 py-2">在庫更新</th>
                 <th className="px-3 py-2">表示</th>
                 <th className="px-3 py-2">操作</th>
               </tr>
@@ -257,6 +260,9 @@ function ProductRow({
             className="w-20 rounded border px-2 py-1 text-sm"
           />
         </td>
+        <td className="px-3 py-2 text-xs text-gray-400">
+          {formatStockFreshness(product.stock_updated_at).relative}
+        </td>
         <td className="px-3 py-2">
           <input
             type="checkbox"
@@ -307,6 +313,17 @@ function ProductRow({
         ) : (
           product.stock
         )}
+      </td>
+      <td className="px-3 py-2">
+        {(() => {
+          const f = formatStockFreshness(product.stock_updated_at);
+          return (
+            <span className={f.stale ? 'text-amber-700' : 'text-gray-500'}>
+              {f.text}
+              {f.stale && ' ⚠️'}
+            </span>
+          );
+        })()}
       </td>
       <td className="px-3 py-2">{product.is_visible ? '表示' : '非表示'}</td>
       <td className="px-3 py-2">
