@@ -1,7 +1,7 @@
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { authenticateAdmin } from '@/lib/middleware';
 import { updateTargetsSchema } from '@/lib/validators';
-import { jsonError, jsonOk, parseBody, verifyOrigin, forbiddenOrigin, withRoute } from '@/lib/http';
+import { jsonError, jsonOk, parseBody, verifyOrigin, forbiddenOrigin, withRoute, isUuid, notFound } from '@/lib/http';
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -11,12 +11,14 @@ async function putHandler(req: Request, { params }: Params) {
   const admin = await authenticateAdmin();
   if (!admin.ok) return admin.response;
 
+  const slotId = (await params).id;
+  if (!isUuid(slotId)) return notFound('シフト枠が見つかりません');
+
   const parsed = await parseBody(req, updateTargetsSchema);
   if (!parsed.ok) return parsed.response;
   const { user_ids } = parsed.data;
 
   const supabase = getSupabaseAdmin();
-  const slotId = (await params).id;
 
   // 全削除 → 新規挿入
   const { error: delError } = await supabase

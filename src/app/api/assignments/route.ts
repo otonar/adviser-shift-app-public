@@ -60,10 +60,11 @@ async function postHandler(req: Request) {
   );
 
   // 既存を全削除 → 挿入
-  await supabase
+  const { error: delError } = await supabase
     .from('shift_assignments')
     .delete()
     .eq('shift_slot_id', shift_slot_id);
+  if (delError) return jsonError('割り振りの保存に失敗しました', 500, 'ASSIGN_FAILED');
 
   if (result.length > 0) {
     const rows = result.map((r) => ({

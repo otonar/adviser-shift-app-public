@@ -37,19 +37,27 @@ function baseCookieOptions() {
 
 // ===== トークン生成・検証 =====
 
+// 署名・検証ともアルゴリズムを HS256 に固定する（多層防御: アルゴリズム
+// 取り違え／'none' を明示的に排除する）。
+const JWT_ALGORITHM = 'HS256' as const;
+
 export function signUserToken(payload: { userId: string; name: string }): string {
-  return jwt.sign(payload, secret(), { expiresIn: `${getSessionMaxAgeDays()}d` });
+  return jwt.sign(payload, secret(), {
+    algorithm: JWT_ALGORITHM,
+    expiresIn: `${getSessionMaxAgeDays()}d`,
+  });
 }
 
 export function signAdminToken(): string {
   return jwt.sign({ role: 'admin' }, secret(), {
+    algorithm: JWT_ALGORITHM,
     expiresIn: `${getSessionMaxAgeDays()}d`,
   });
 }
 
 export function verifyUserToken(token: string): UserJwtPayload | null {
   try {
-    const decoded = jwt.verify(token, secret());
+    const decoded = jwt.verify(token, secret(), { algorithms: [JWT_ALGORITHM] });
     if (typeof decoded === 'object' && decoded && 'userId' in decoded) {
       return decoded as UserJwtPayload;
     }
@@ -61,7 +69,7 @@ export function verifyUserToken(token: string): UserJwtPayload | null {
 
 export function verifyAdminToken(token: string): AdminJwtPayload | null {
   try {
-    const decoded = jwt.verify(token, secret());
+    const decoded = jwt.verify(token, secret(), { algorithms: [JWT_ALGORITHM] });
     if (
       typeof decoded === 'object' &&
       decoded &&

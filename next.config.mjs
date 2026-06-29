@@ -8,14 +8,34 @@ import { withSerwist } from '@serwist/turbopack';
 // Next.js のハイドレーションと Tailwind のため script/style に 'unsafe-inline' を許可
 // （nonce 方式は未導入）。LIFF（static.line-scdn.net / *.line.me）と Serwist SW(self) を許可。
 // connect-src を絞り、frame-ancestors/base-uri/form-action/object-src で多層防御する。
+//
+// 'unsafe-eval' は開発時（Turbopack の HMR 等）のみ許可し、本番では外して
+// XSS 時の攻撃面を縮小する。本番ビルドの Next.js は eval を必要としない。
+const isDev = process.env.NODE_ENV !== 'production';
+// Vercel のプレビューデプロイには Vercel Live フィードバックツールバー
+// （vercel.live）が注入される。本番(production)には注入されないため、
+// プレビュー環境でのみ許可してコンソールのノイズを無くす。本番 CSP は据え置き。
+const isPreview = process.env.VERCEL_ENV === 'preview';
+const vercelLive = isPreview ? ['https://vercel.live'] : [];
+
+const scriptSrc = [
+  "'self'",
+  "'unsafe-inline'",
+  ...(isDev ? ["'unsafe-eval'"] : []),
+  ...vercelLive,
+  'https://static.line-scdn.net',
+].join(' ');
+
 const csp = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://static.line-scdn.net",
+  `script-src ${scriptSrc}`,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https:",
-  "font-src 'self' data:",
-  "connect-src 'self' https://api.line.me https://*.line.me https://static.line-scdn.net",
-  "frame-src 'self' https://*.line.me",
+  `font-src 'self' data:${isPreview ? ' https://vercel.live https://assets.vercel.com' : ''}`,
+  `connect-src 'self' https://api.line.me https://*.line.me https://static.line-scdn.net${
+    isPreview ? ' https://vercel.live https://*.pusher.com wss://*.pusher.com' : ''
+  }`,
+  `frame-src 'self' https://*.line.me${isPreview ? ' https://vercel.live' : ''}`,
   "worker-src 'self'",
   "manifest-src 'self'",
   "object-src 'none'",

@@ -95,13 +95,12 @@ async function postHandler(req: Request) {
 
   // 対象スタッフ
   const targetIds = target_user_ids ?? [];
-  if (targetIds.length > 0) {
-    const rows = targetIds.map((user_id) => ({
-      shift_slot_id: slot.id,
-      user_id,
-    }));
-    await supabase.from('shift_target_users').insert(rows);
-  }
+  const { error: targetErr } =
+    targetIds.length > 0
+      ? await supabase
+          .from('shift_target_users')
+          .insert(targetIds.map((user_id) => ({ shift_slot_id: slot.id, user_id })))
+      : { error: null };
 
   // 役割別必要人数（初期値 0）
   const reqRows = rolesForSlotType(slot_type).map((role) => ({
@@ -109,7 +108,16 @@ async function postHandler(req: Request) {
     role,
     required_count: 0,
   }));
-  await supabase.from('shift_role_requirements').insert(reqRows);
+  const { error: reqErr } = await supabase
+    .from('shift_role_requirements')
+    .insert(reqRows);
+
+  // 付随データの作成に失敗したら、対象者/必要人数の無い不完全な枠が
+  // 残らないよう、作成した枠を取り消す（関連は CASCADE で消える）。
+  if (targetErr || reqErr) {
+    await supabase.from('shift_slots').delete().eq('id', slot.id);
+    return jsonError('シフト枠の作成に失敗しました', 500, 'CREATE_FAILED');
+  }
 
   return jsonOk({ slot }, 201);
 }
