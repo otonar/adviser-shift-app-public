@@ -15,9 +15,9 @@
   - 管理画面のメンバー…ではなく**目安箱**の各投稿カードから「返答する／編集／削除」。
 
 ### 対応
-- ⚠️ **DB スキーマ変更あり**: `supabase/migrations/004_add_suggestion_reply.sql` を**本番 Supabase に適用してください**（`suggestions` に `admin_reply`・`replied_at` カラムを追加。003 適用済みが前提）。**未適用だと返答の保存・表示がエラーになります**。
+- ✅ **DB スキーマ変更（適用済み）**: `supabase/migrations/004_add_suggestion_reply.sql`（`suggestions` に `admin_reply`・`replied_at` カラムを追加）を **2026-06-29 に本番 Supabase へ適用済み**。本番 DB は共有のため、各自での適用は不要です。
 - 追加インストール・環境変数の変更は不要。
-- 本番（Vercel）は `main` へのマージで自動再デプロイ。**migration 適用後にデプロイ**するのが安全。
+- 本番（Vercel）は `main` へのマージで自動再デプロイ済み。返答機能はフル稼働しています。
 
 ## 2026-06-22（その3）
 
