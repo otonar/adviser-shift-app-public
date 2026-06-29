@@ -40,19 +40,30 @@ async function postHandler(req: Request) {
 
   // 対象スタッフ（全枠ぶん）
   const targetIds = target_user_ids ?? [];
-  if (targetIds.length > 0) {
-    const targetRows = slotIds.flatMap((shift_slot_id) =>
-      targetIds.map((user_id) => ({ shift_slot_id, user_id }))
-    );
-    await supabase.from('shift_target_users').insert(targetRows);
-  }
+  const { error: targetErr } =
+    targetIds.length > 0
+      ? await supabase.from('shift_target_users').insert(
+          slotIds.flatMap((shift_slot_id) =>
+            targetIds.map((user_id) => ({ shift_slot_id, user_id }))
+          )
+        )
+      : { error: null };
 
   // 役割別必要人数（初期値 0、全枠ぶん）
   const roles = rolesForSlotType(slot_type);
   const reqRows = slotIds.flatMap((shift_slot_id) =>
     roles.map((role) => ({ shift_slot_id, role, required_count: 0 }))
   );
-  await supabase.from('shift_role_requirements').insert(reqRows);
+  const { error: reqErr } = await supabase
+    .from('shift_role_requirements')
+    .insert(reqRows);
+
+  // 付随データの作成に失敗したら、不完全な枠が残らないよう作成分を取り消す
+  // （関連は CASCADE で消える）。
+  if (targetErr || reqErr) {
+    await supabase.from('shift_slots').delete().in('id', slotIds);
+    return jsonError('シフト枠の作成に失敗しました', 500, 'CREATE_FAILED');
+  }
 
   return jsonOk({ created: slotIds.length }, 201);
 }

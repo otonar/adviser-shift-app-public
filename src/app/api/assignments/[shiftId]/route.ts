@@ -1,13 +1,14 @@
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { authenticateAdmin, authenticateUser } from '@/lib/middleware';
 import { manualAssignmentSchema } from '@/lib/validators';
-import { jsonError, jsonOk, parseBody, verifyOrigin, forbiddenOrigin, withRoute } from '@/lib/http';
+import { jsonError, jsonOk, parseBody, verifyOrigin, forbiddenOrigin, withRoute, isUuid, notFound } from '@/lib/http';
 
 type Params = { params: Promise<{ shiftId: string }> };
 
 // GET: 割り振り結果。管理者は全員分、一般スタッフは published のときのみ自分の分。
 async function getHandler(_req: Request, { params }: Params) {
   const slotId = (await params).shiftId;
+  if (!isUuid(slotId)) return notFound('シフト枠が見つかりません');
 
   const admin = await authenticateAdmin();
   if (admin.ok) {
@@ -51,17 +52,20 @@ async function patchHandler(req: Request, { params }: Params) {
   const admin = await authenticateAdmin();
   if (!admin.ok) return admin.response;
 
+  const slotId = (await params).shiftId;
+  if (!isUuid(slotId)) return notFound('シフト枠が見つかりません');
+
   const parsed = await parseBody(req, manualAssignmentSchema);
   if (!parsed.ok) return parsed.response;
   const { assignments } = parsed.data;
 
   const supabase = getSupabaseAdmin();
-  const slotId = (await params).shiftId;
 
-  await supabase
+  const { error: delError } = await supabase
     .from('shift_assignments')
     .delete()
     .eq('shift_slot_id', slotId);
+  if (delError) return jsonError('保存に失敗しました', 500, 'SAVE_FAILED');
 
   if (assignments.length > 0) {
     const rows = assignments.map((a) => ({

@@ -8,9 +8,20 @@ import { withSerwist } from '@serwist/turbopack';
 // Next.js のハイドレーションと Tailwind のため script/style に 'unsafe-inline' を許可
 // （nonce 方式は未導入）。LIFF（static.line-scdn.net / *.line.me）と Serwist SW(self) を許可。
 // connect-src を絞り、frame-ancestors/base-uri/form-action/object-src で多層防御する。
+//
+// 'unsafe-eval' は開発時（Turbopack の HMR 等）のみ許可し、本番では外して
+// XSS 時の攻撃面を縮小する。本番ビルドの Next.js は eval を必要としない。
+const isDev = process.env.NODE_ENV !== 'production';
+const scriptSrc = [
+  "'self'",
+  "'unsafe-inline'",
+  ...(isDev ? ["'unsafe-eval'"] : []),
+  'https://static.line-scdn.net',
+].join(' ');
+
 const csp = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://static.line-scdn.net",
+  `script-src ${scriptSrc}`,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https:",
   "font-src 'self' data:",

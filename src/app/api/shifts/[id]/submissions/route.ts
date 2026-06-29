@@ -2,7 +2,7 @@ import { getSupabaseAdmin } from '@/lib/supabase';
 import { authenticateUser } from '@/lib/middleware';
 import { submissionSchema } from '@/lib/validators';
 import { isExpired } from '@/lib/datetime';
-import { jsonError, jsonOk, parseBody, verifyOrigin, forbiddenOrigin, withRoute } from '@/lib/http';
+import { jsonError, jsonOk, parseBody, verifyOrigin, forbiddenOrigin, withRoute, isUuid, notFound } from '@/lib/http';
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -12,12 +12,14 @@ async function postHandler(req: Request, { params }: Params) {
   const auth = await authenticateUser();
   if (!auth.ok) return auth.response;
 
+  const slotId = (await params).id;
+  if (!isUuid(slotId)) return notFound('シフト枠が見つかりません');
+
   const parsed = await parseBody(req, submissionSchema);
   if (!parsed.ok) return parsed.response;
   const { available, note } = parsed.data;
 
   const supabase = getSupabaseAdmin();
-  const slotId = (await params).id;
 
   // 対象スタッフかどうか
   const { data: target } = await supabase

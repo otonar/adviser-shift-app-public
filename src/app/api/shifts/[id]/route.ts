@@ -2,7 +2,7 @@ import { getSupabaseAdmin } from '@/lib/supabase';
 import { authenticateAdmin } from '@/lib/middleware';
 import { updateShiftSchema } from '@/lib/validators';
 import { computeDeadline } from '@/lib/datetime';
-import { jsonError, jsonOk, parseBody, verifyOrigin, forbiddenOrigin, withRoute } from '@/lib/http';
+import { jsonError, jsonOk, parseBody, verifyOrigin, forbiddenOrigin, withRoute, isUuid, notFound } from '@/lib/http';
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -11,8 +11,10 @@ async function getHandler(_req: Request, { params }: Params) {
   const admin = await authenticateAdmin();
   if (!admin.ok) return admin.response;
 
-  const supabase = getSupabaseAdmin();
   const slotId = (await params).id;
+  if (!isUuid(slotId)) return notFound('シフト枠が見つかりません');
+
+  const supabase = getSupabaseAdmin();
 
   const { data: slot, error } = await supabase
     .from('shift_slots')
@@ -82,12 +84,14 @@ async function patchHandler(req: Request, { params }: Params) {
   const admin = await authenticateAdmin();
   if (!admin.ok) return admin.response;
 
+  const slotId = (await params).id;
+  if (!isUuid(slotId)) return notFound('シフト枠が見つかりません');
+
   const parsed = await parseBody(req, updateShiftSchema);
   if (!parsed.ok) return parsed.response;
   const { date, start_time, end_time, note, role_requirements } = parsed.data;
 
   const supabase = getSupabaseAdmin();
-  const slotId = (await params).id;
 
   // 枠情報の更新
   const slotUpdate: Record<string, unknown> = {};
@@ -129,11 +133,14 @@ async function deleteHandler(_req: Request, { params }: Params) {
   const admin = await authenticateAdmin();
   if (!admin.ok) return admin.response;
 
+  const slotId = (await params).id;
+  if (!isUuid(slotId)) return notFound('シフト枠が見つかりません');
+
   const supabase = getSupabaseAdmin();
   const { error } = await supabase
     .from('shift_slots')
     .delete()
-    .eq('id', (await params).id);
+    .eq('id', slotId);
   if (error) return jsonError('削除に失敗しました', 500, 'DELETE_FAILED');
   return jsonOk({ ok: true });
 }

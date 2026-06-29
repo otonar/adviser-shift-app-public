@@ -1,6 +1,6 @@
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { authenticateAdmin } from '@/lib/middleware';
-import { jsonError, jsonOk, verifyOrigin, forbiddenOrigin, withRoute } from '@/lib/http';
+import { jsonError, jsonOk, verifyOrigin, forbiddenOrigin, withRoute, isUuid, notFound } from '@/lib/http';
 
 type Params = { params: Promise<{ shiftId: string }> };
 
@@ -10,13 +10,16 @@ async function postHandler(_req: Request, { params }: Params) {
   const admin = await authenticateAdmin();
   if (!admin.ok) return admin.response;
 
-  const supabase = getSupabaseAdmin();
   const slotId = (await params).shiftId;
+  if (!isUuid(slotId)) return notFound('シフト枠が見つかりません');
 
-  await supabase
+  const supabase = getSupabaseAdmin();
+
+  const { error: delError } = await supabase
     .from('shift_assignments')
     .delete()
     .eq('shift_slot_id', slotId);
+  if (delError) return jsonError('やり直しに失敗しました', 500, 'RESET_FAILED');
 
   const { error } = await supabase
     .from('shift_slots')

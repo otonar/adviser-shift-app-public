@@ -64,6 +64,20 @@ export function forbiddenOrigin() {
   return jsonError('リクエストが拒否されました', 403, 'FORBIDDEN_ORIGIN');
 }
 
+// 動的ルートの id パラメータが UUID 形式かを検証する。
+// 不正な形式のまま DB に渡すと 500/404 が混在しレスポンスが一貫しないため、
+// ルート冒頭で弾いて一律 404（存在しない扱い）にする。
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function isUuid(value: string): boolean {
+  return UUID_RE.test(value);
+}
+
+export function notFound(message = 'リソースが見つかりません') {
+  return jsonError(message, 404, 'NOT_FOUND');
+}
+
 type RouteHandler<A extends unknown[]> = (
   ...args: A
 ) => Response | Promise<Response>;

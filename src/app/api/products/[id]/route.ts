@@ -1,7 +1,7 @@
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { authenticateAdmin } from '@/lib/middleware';
 import { updateProductSchema } from '@/lib/validators';
-import { jsonError, jsonOk, parseBody, verifyOrigin, forbiddenOrigin, withRoute } from '@/lib/http';
+import { jsonError, jsonOk, parseBody, verifyOrigin, forbiddenOrigin, withRoute, isUuid, notFound } from '@/lib/http';
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -10,6 +10,9 @@ async function patchHandler(req: Request, { params }: Params) {
   if (!(await verifyOrigin())) return forbiddenOrigin();
   const admin = await authenticateAdmin();
   if (!admin.ok) return admin.response;
+
+  const id = (await params).id;
+  if (!isUuid(id)) return notFound('商品が見つかりません');
 
   const parsed = await parseBody(req, updateProductSchema);
   if (!parsed.ok) return parsed.response;
@@ -26,7 +29,7 @@ async function patchHandler(req: Request, { params }: Params) {
   const { data, error } = await supabase
     .from('products')
     .update(update)
-    .eq('id', (await params).id)
+    .eq('id', id)
     .select('*')
     .maybeSingle();
   if (error) return jsonError('更新に失敗しました', 500, 'UPDATE_FAILED');
@@ -40,8 +43,11 @@ async function deleteHandler(_req: Request, { params }: Params) {
   const admin = await authenticateAdmin();
   if (!admin.ok) return admin.response;
 
+  const id = (await params).id;
+  if (!isUuid(id)) return notFound('商品が見つかりません');
+
   const supabase = getSupabaseAdmin();
-  const { error } = await supabase.from('products').delete().eq('id', (await params).id);
+  const { error } = await supabase.from('products').delete().eq('id', id);
   if (error) return jsonError('削除に失敗しました', 500, 'DELETE_FAILED');
   return jsonOk({ ok: true });
 }
