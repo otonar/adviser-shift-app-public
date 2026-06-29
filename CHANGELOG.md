@@ -6,6 +6,16 @@
 
 ---
 
+## 2026-06-29（その2）
+
+### 変更点
+- **依存パッケージの脆弱性修正**: `npm audit fix`（破壊的変更なし）で **high 1件（form-data の CRLF インジェクション）** と low 1件（esbuild・開発時/Windows のみ）を解消。`package-lock.json` のみ更新（アプリの挙動・機能変更なし）。
+  - 残る 2件（moderate）は **Next.js 本体が同梱する postcss** によるもので、修正には Next のダウングレード（破壊的）が必要なため従来どおり受容（Next 本体のパッチ待ち）。
+
+### 対応
+- `git pull` のみ。`npm install`（lock 更新を反映）を推奨。環境変数の変更なし。
+- 本番（Vercel）は `main` への push で自動再デプロイ。
+
 ## 2026-06-22（その4）
 
 ### 変更点
