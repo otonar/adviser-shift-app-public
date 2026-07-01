@@ -38,11 +38,17 @@ export async function authenticateUser(): Promise<UserAuth> {
     const supabase = getSupabaseAdmin();
     const { data, error } = await supabase
       .from('users')
-      .select('is_active')
+      .select('is_active, token_version')
       .eq('id', payload.userId)
       .single();
 
     if (error || !data || !data.is_active) {
+      return { ok: false, response: unauthorized() };
+    }
+
+    // token_version 照合: パスワードのリセット/変更で +1 された後の古いトークンを弾く。
+    // 旧トークン（tv 無し）は 0 とみなす（導入時に一斉ログアウトさせない）。
+    if ((payload.tv ?? 0) !== (data.token_version ?? 0)) {
       return { ok: false, response: unauthorized() };
     }
 

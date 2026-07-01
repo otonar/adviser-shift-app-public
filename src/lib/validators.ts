@@ -196,6 +196,15 @@ export const updateMeSchema = z
   });
 export type UpdateMeInput = z.infer<typeof updateMeSchema>;
 
+// ===== パスワード変更（本人） =====
+
+// 本人によるパスワード変更。現在のパスワード確認を必須にする。
+export const changePasswordSchema = z.object({
+  current_password: z.string().min(1),
+  new_password: z.string().min(8, 'パスワードは8文字以上'),
+});
+export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
+
 // ===== メンバー管理（管理者） =====
 
 // 管理者はアクティブ状態と役割（当日用・研修用）を変更できる。

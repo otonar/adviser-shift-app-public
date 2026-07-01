@@ -41,11 +41,19 @@ function baseCookieOptions() {
 // 取り違え／'none' を明示的に排除する）。
 const JWT_ALGORITHM = 'HS256' as const;
 
-export function signUserToken(payload: { userId: string; name: string }): string {
-  return jwt.sign(payload, secret(), {
-    algorithm: JWT_ALGORITHM,
-    expiresIn: `${getSessionMaxAgeDays()}d`,
-  });
+export function signUserToken(payload: {
+  userId: string;
+  name: string;
+  tokenVersion: number;
+}): string {
+  return jwt.sign(
+    { userId: payload.userId, name: payload.name, tv: payload.tokenVersion },
+    secret(),
+    {
+      algorithm: JWT_ALGORITHM,
+      expiresIn: `${getSessionMaxAgeDays()}d`,
+    }
+  );
 }
 
 export function signAdminToken(): string {

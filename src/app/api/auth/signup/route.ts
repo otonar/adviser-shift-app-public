@@ -44,7 +44,8 @@ async function postHandler(req: Request) {
     return jsonError('登録に失敗しました', 500, 'SIGNUP_FAILED');
   }
 
-  const token = signUserToken({ userId: user.id, name: user.name });
+  // 新規ユーザーの token_version は既定の 0。
+  const token = signUserToken({ userId: user.id, name: user.name, tokenVersion: 0 });
   await setUserCookie(token);
 
   return jsonOk({ user: { id: user.id, name: user.name } }, 201);
