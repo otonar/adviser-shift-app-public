@@ -26,7 +26,7 @@ async function postHandler(req: Request) {
 
   const { data: user } = await supabase
     .from('users')
-    .select('id, name, password_hash, is_active, locked_until')
+    .select('id, name, password_hash, is_active, locked_until, token_version')
     .eq('name', name)
     .maybeSingle();
 
@@ -90,7 +90,11 @@ async function postHandler(req: Request) {
     })
     .eq('id', user.id);
 
-  const token = signUserToken({ userId: user.id, name: user.name });
+  const token = signUserToken({
+    userId: user.id,
+    name: user.name,
+    tokenVersion: user.token_version ?? 0,
+  });
   await setUserCookie(token);
 
   return jsonOk({ user: { id: user.id, name: user.name } });

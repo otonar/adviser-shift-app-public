@@ -73,6 +73,7 @@ export default function SettingsPanel({ liffId }: { liffId: string | null }) {
   return (
     <div className="flex flex-col gap-6">
       <NameSection initialName={me.name} onSaved={load} />
+      <PasswordSection />
       <RolesInfo dayRoles={me.day_roles} trainingRoles={me.training_roles} />
       <LineSection linked={me.line_linked} liffId={liffId} onChanged={load} />
       <WithdrawSection
@@ -152,6 +153,92 @@ function NameSection({
           className="rounded border bg-gray-900 px-4 py-2 text-sm text-white disabled:opacity-50"
         >
           保存
+        </button>
+      </div>
+      {msg && <p className="mt-2 text-sm text-green-600">{msg}</p>}
+      {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+    </Section>
+  );
+}
+
+// 本人によるパスワード変更。現在のパスワード確認あり。仮パスワードで入った人も
+// ここで自分の好きなパスワードに変えられる。
+function PasswordSection() {
+  const [current, setCurrent] = useState('');
+  const [next, setNext] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function save() {
+    setMsg(null);
+    setError(null);
+    if (next.length < 8) {
+      setError('新しいパスワードは8文字以上にしてください');
+      return;
+    }
+    if (next !== confirm) {
+      setError('確認用のパスワードが一致しません');
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await fetch('/api/users/me/password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ current_password: current, new_password: next }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error ?? '変更に失敗しました');
+        return;
+      }
+      setMsg('パスワードを変更しました');
+      setCurrent('');
+      setNext('');
+      setConfirm('');
+    } catch {
+      setError('通信エラーが発生しました');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Section title="パスワード変更">
+      <div className="flex flex-col gap-2">
+        <input
+          type="password"
+          autoComplete="current-password"
+          placeholder="現在のパスワード"
+          value={current}
+          onChange={(e) => setCurrent(e.target.value)}
+          className="rounded border px-3 py-2 text-sm"
+        />
+        <input
+          type="password"
+          autoComplete="new-password"
+          placeholder="新しいパスワード（8文字以上）"
+          value={next}
+          onChange={(e) => setNext(e.target.value)}
+          className="rounded border px-3 py-2 text-sm"
+        />
+        <input
+          type="password"
+          autoComplete="new-password"
+          placeholder="新しいパスワード（確認）"
+          value={confirm}
+          onChange={(e) => setConfirm(e.target.value)}
+          className="rounded border px-3 py-2 text-sm"
+        />
+        <button
+          type="button"
+          disabled={saving || !current || !next || !confirm}
+          onClick={save}
+          className="self-start rounded border bg-gray-900 px-4 py-2 text-sm text-white disabled:opacity-50"
+        >
+          {saving ? '変更中…' : 'パスワードを変更'}
         </button>
       </div>
       {msg && <p className="mt-2 text-sm text-green-600">{msg}</p>}

@@ -162,6 +162,9 @@ export interface AdminLoginAttempt {
 export interface UserJwtPayload {
   userId: string;
   name: string;
+  // token_version。DB の users.token_version と一致しないトークンは無効
+  // （パスワードのリセット/変更で +1 して過去のセッションを失効させる）。
+  tv: number;
   iat: number;
   exp: number;
 }
