@@ -48,38 +48,31 @@ export async function getAdminLockState(): Promise<LockState> {
 
 /**
  * ログイン失敗を記録。5回到達で 15 分ロック。
+ *
+ * カウンタ加算は DB 関数 record_admin_login_failure で行い、対象行を
+ * FOR UPDATE でロックして再計算 → 更新することで並列失敗による過少カウント
+ * （TOCTOU）を防ぐ。stale ウィンドウ・ロック期限切れリセットの判定も関数内。
+ *
  * @returns 記録後の累積失敗回数（呼び出し側で残り回数の算出に使う）
  */
 export async function recordAdminFailure(): Promise<number> {
   const supabase = getSupabaseAdmin();
-  const { data } = await supabase
-    .from('admin_login_attempts')
-    .select('failed_attempts, updated_at')
-    .eq('identifier', ADMIN_IDENTIFIER)
-    .maybeSingle();
-
-  // 最後の失敗から ATTEMPT_WINDOW_MINUTES 以上経っていれば、古い失敗は数えない
-  const stale = data?.updated_at
-    ? Date.now() - new Date(data.updated_at).getTime() >
-      ATTEMPT_WINDOW_MINUTES * 60 * 1000
-    : false;
-  const prior = stale ? 0 : (data?.failed_attempts ?? 0);
-  const attempts = prior + 1;
-  const locked_until =
-    attempts >= MAX_LOGIN_ATTEMPTS
-      ? new Date(Date.now() + LOCK_MINUTES * 60 * 1000).toISOString()
-      : null;
-
-  await supabase
-    .from('admin_login_attempts')
-    .update({
-      failed_attempts: attempts,
-      locked_until,
-      updated_at: new Date().toISOString(),
+  const { data, error } = await supabase
+    .rpc('record_admin_login_failure', {
+      p_identifier: ADMIN_IDENTIFIER,
+      p_max_attempts: MAX_LOGIN_ATTEMPTS,
+      p_lock_minutes: LOCK_MINUTES,
+      p_window_minutes: ATTEMPT_WINDOW_MINUTES,
     })
-    .eq('identifier', ADMIN_IDENTIFIER);
+    .maybeSingle<{ out_attempts: number; out_locked_until: string | null }>();
 
-  return attempts;
+  if (error || !data) {
+    // 失敗記録に失敗した場合は内部エラーとして扱う（呼び出し側 withRoute が 500 化）。
+    // 実際の値は出力しない。
+    throw new Error('failed to record admin login failure');
+  }
+
+  return data.out_attempts;
 }
 
 export async function resetAdminAttempts(): Promise<void> {
