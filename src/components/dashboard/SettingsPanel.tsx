@@ -17,6 +17,8 @@ type LiffModule = {
   isLoggedIn: () => boolean;
   login: (config?: { redirectUri?: string }) => void;
   getProfile: () => Promise<{ userId: string }>;
+  // 公式アカウントを LINE ログインチャネルにリンクしていると使える。友だち状態を返す。
+  getFriendship?: () => Promise<{ friendFlag: boolean }>;
 };
 declare global {
   interface Window {
@@ -42,7 +44,13 @@ function loadLiffScript(): Promise<LiffModule> {
   });
 }
 
-export default function SettingsPanel({ liffId }: { liffId: string | null }) {
+export default function SettingsPanel({
+  liffId,
+  addFriendUrl,
+}: {
+  liffId: string | null;
+  addFriendUrl: string | null;
+}) {
   const router = useRouter();
   const [me, setMe] = useState<Me | null>(null);
   const [loading, setLoading] = useState(true);
@@ -79,7 +87,12 @@ export default function SettingsPanel({ liffId }: { liffId: string | null }) {
       <NameSection initialName={me.name} onSaved={load} />
       <PasswordSection />
       <RolesInfo dayRoles={me.day_roles} trainingRoles={me.training_roles} />
-      <LineSection linked={me.line_linked} liffId={liffId} onChanged={load} />
+      <LineSection
+        linked={me.line_linked}
+        liffId={liffId}
+        addFriendUrl={addFriendUrl}
+        onChanged={load}
+      />
       <WithdrawSection
         onWithdrawn={() => {
           router.push('/');
@@ -283,14 +296,40 @@ function RolesInfo({
 function LineSection({
   linked,
   liffId,
+  addFriendUrl,
   onChanged,
 }: {
   linked: boolean;
   liffId: string | null;
+  addFriendUrl: string | null;
   onChanged: () => void;
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // 友だち状態: true=友だち / false=未追加 / null=不明（判定できなかった）
+  const [friend, setFriend] = useState<boolean | null>(null);
+
+  // すでに連携済みで LIFF にログインが残っている場合は、友だち状態を確認する。
+  // ログインが残っていない通常訪問では確認できない（null のまま＝控えめな案内を出す）。
+  useEffect(() => {
+    if (!liffId || !linked || !addFriendUrl || friend !== null) return;
+    const id = liffId;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const liff = await loadLiffScript();
+        await liff.init({ liffId: id });
+        if (!liff.isLoggedIn() || !liff.getFriendship) return;
+        const fr = await liff.getFriendship();
+        if (!cancelled) setFriend(fr.friendFlag);
+      } catch {
+        /* 判定不可はそのまま（null） */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [liffId, linked, addFriendUrl, friend]);
 
   async function saveLineId(lineUserId: string | null) {
     const res = await fetch('/api/users/me', {
@@ -331,6 +370,15 @@ function LineSection({
         if (cancelled) return;
         await saveLineId(profile.userId);
         if (!cancelled) onChanged();
+        // 連携直後に友だち状態を確認（未追加なら案内を出すため）。
+        if (liff.getFriendship) {
+          try {
+            const fr = await liff.getFriendship();
+            if (!cancelled) setFriend(fr.friendFlag);
+          } catch {
+            /* 判定不可は無視 */
+          }
+        }
       } catch (e) {
         if (!cancelled)
           setError(e instanceof Error ? e.message : 'LINE連携に失敗しました');
@@ -361,6 +409,14 @@ function LineSection({
       const profile = await liff.getProfile();
       await saveLineId(profile.userId);
       onChanged();
+      if (liff.getFriendship) {
+        try {
+          const fr = await liff.getFriendship();
+          setFriend(fr.friendFlag);
+        } catch {
+          /* 判定不可は無視 */
+        }
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'LINE連携に失敗しました');
     } finally {
@@ -384,16 +440,54 @@ function LineSection({
   return (
     <Section title="LINE連携">
       {linked ? (
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <span className="text-sm text-green-700">連携済み ✓</span>
-          <button
-            type="button"
-            disabled={busy}
-            onClick={unlink}
-            className="rounded border px-4 py-2 text-sm disabled:opacity-50"
-          >
-            連携解除
-          </button>
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <span className="text-sm text-green-700">連携済み ✓</span>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={unlink}
+              className="rounded border px-4 py-2 text-sm disabled:opacity-50"
+            >
+              連携解除
+            </button>
+          </div>
+
+          {/* 通知は「公式アカウントを友だち追加した人」にしか届かないため、
+              未追加（または不明）なら友だち追加へ誘導する。 */}
+          {addFriendUrl && friend === false && (
+            <div className="rounded border border-amber-300 bg-amber-50 px-3 py-3 text-sm text-amber-800">
+              <p className="mb-2">
+                ⚠️ 通知を受け取るには、公式アカウントの
+                <strong>友だち追加</strong>が必要です。
+              </p>
+              <a
+                href={addFriendUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-block rounded bg-green-600 px-4 py-2 text-sm text-white"
+              >
+                LINEで友だち追加
+              </a>
+            </div>
+          )}
+          {addFriendUrl && friend === true && (
+            <p className="text-xs text-green-700">友だち追加済み ✓ 通知を受け取れます。</p>
+          )}
+          {addFriendUrl && friend === null && (
+            <p className="text-xs text-gray-500">
+              通知が届かない場合は{' '}
+              <a
+                href={addFriendUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-green-700 underline"
+              >
+                友だち追加
+              </a>{' '}
+              をご確認ください。
+            </p>
+          )}
         </div>
       ) : liffId ? (
         <button
