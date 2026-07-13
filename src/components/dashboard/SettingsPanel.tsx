@@ -15,7 +15,7 @@ type Me = {
 type LiffModule = {
   init: (config: { liffId: string }) => Promise<void>;
   isLoggedIn: () => boolean;
-  login: () => void;
+  login: (config?: { redirectUri?: string }) => void;
   getProfile: () => Promise<{ userId: string }>;
 };
 declare global {
@@ -23,6 +23,10 @@ declare global {
     liff?: LiffModule;
   }
 }
+
+// LINE ログインへリダイレクトする直前に立てる目印。外部ブラウザではログイン後に
+// このページへ戻ってくるので、戻った時に自動で連携を完了するために使う。
+const LINK_PENDING_KEY = 'line-link-pending';
 
 function loadLiffScript(): Promise<LiffModule> {
   return new Promise((resolve, reject) => {
@@ -300,6 +304,43 @@ function LineSection({
     }
   }
 
+  // 外部ブラウザで LINE ログインから戻ってきたときに、自動で連携を完了する。
+  // login() 直前に立てた目印がある場合のみ実行（通常の設定画面表示では走らない）。
+  useEffect(() => {
+    if (!liffId || linked) return;
+    const id = liffId;
+    let pending = false;
+    try {
+      pending = sessionStorage.getItem(LINK_PENDING_KEY) === '1';
+    } catch {
+      /* sessionStorage 不可なら何もしない */
+    }
+    if (!pending) return;
+    try {
+      sessionStorage.removeItem(LINK_PENDING_KEY);
+    } catch {
+      /* noop */
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const liff = await loadLiffScript();
+        await liff.init({ liffId: id });
+        if (!liff.isLoggedIn()) return; // 応答が未処理なら何もしない
+        const profile = await liff.getProfile();
+        if (cancelled) return;
+        await saveLineId(profile.userId);
+        if (!cancelled) onChanged();
+      } catch (e) {
+        if (!cancelled)
+          setError(e instanceof Error ? e.message : 'LINE連携に失敗しました');
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [liffId, linked, onChanged]);
+
   async function link() {
     if (!liffId) return;
     setBusy(true);
@@ -308,8 +349,14 @@ function LineSection({
       const liff = await loadLiffScript();
       await liff.init({ liffId });
       if (!liff.isLoggedIn()) {
-        liff.login();
-        return; // リダイレクトされる
+        // 戻ってきたときに自動完了できるよう目印を立て、確実にこのページへ戻す。
+        try {
+          sessionStorage.setItem(LINK_PENDING_KEY, '1');
+        } catch {
+          /* noop */
+        }
+        liff.login({ redirectUri: window.location.href });
+        return; // リダイレクトされる（戻ると上の useEffect が連携を完了する）
       }
       const profile = await liff.getProfile();
       await saveLineId(profile.userId);
