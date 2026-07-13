@@ -9,11 +9,13 @@ export default async function SettingsPage() {
 
   // LIFF ID はビルド時に NEXT_PUBLIC_ として埋め込まれる。未設定なら連携 UI は無効表示。
   const liffId = process.env.NEXT_PUBLIC_LIFF_ID ?? null;
+  // 公式アカウントの友だち追加リンク（例: https://lin.ee/xxxx）。未設定なら友だち追加案内は出さない。
+  const addFriendUrl = process.env.NEXT_PUBLIC_LINE_ADD_FRIEND_URL ?? null;
 
   return (
     <div>
       <h1 className="mb-4 text-xl font-bold">設定</h1>
-      <SettingsPanel liffId={liffId} />
+      <SettingsPanel liffId={liffId} addFriendUrl={addFriendUrl} />
     </div>
   );
 }
