@@ -139,6 +139,13 @@ export default function ShiftDetail({ shiftId }: { shiftId: string }) {
 
   async function publish() {
     if (!window.confirm('確定してスタッフに公開します。よろしいですか？')) return;
+    // 画面上で変更した役割を先に保存してから公開する（未保存の編集が破棄されるのを防ぐ）
+    const assignments = editAssign.map((a) => ({
+      userId: a.user_id,
+      role: a.role,
+    }));
+    if (!(await call(`/api/assignments/${shiftId}`, 'PATCH', { assignments })))
+      return;
     if (await call(`/api/assignments/${shiftId}/publish`, 'POST')) await load();
   }
 
