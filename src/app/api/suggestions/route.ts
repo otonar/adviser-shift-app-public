@@ -2,7 +2,7 @@ import { getSupabaseAdmin } from '@/lib/supabase';
 import { authenticateUser, authenticateAdmin } from '@/lib/middleware';
 import { createSuggestionSchema } from '@/lib/validators';
 import { jsonError, jsonOk, parseBody, verifyOrigin, forbiddenOrigin, withRoute } from '@/lib/http';
-import { CORE_ROLE } from '@/types';
+import { visibleScopes } from '@/lib/scope';
 
 // 指定 user_id 群の表示名を一括取得して Map で返す（埋め込み join の関係型の曖昧さを避ける）。
 async function fetchAuthorNames(
@@ -59,14 +59,7 @@ async function getHandler(req: Request) {
 
   const supabase = getSupabaseAdmin();
   // コアメンバーなら 'core' 限定の投稿も閲覧できる
-  const { data: me } = await supabase
-    .from('users')
-    .select('training_roles')
-    .eq('id', user.userId)
-    .single();
-  const isCore =
-    Array.isArray(me?.training_roles) && me.training_roles.includes(CORE_ROLE);
-  const scopes = isCore ? ['all', 'core'] : ['all'];
+  const scopes = await visibleScopes(user.userId);
 
   const { data, error } = await supabase
     .from('suggestions')
