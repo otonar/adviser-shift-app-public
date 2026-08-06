@@ -31,6 +31,12 @@ export default function Dashboard() {
           目安箱
         </Link>
         <Link
+          href="/dashboard/surveys"
+          className="rounded border bg-white p-4 text-center"
+        >
+          アンケート結果
+        </Link>
+        <Link
           href="/dashboard/settings"
           className="rounded border bg-white p-4 text-center"
         >

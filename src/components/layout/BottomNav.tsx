@@ -8,6 +8,7 @@ const tabs = [
   { href: '/dashboard/my-roles', label: '役割' },
   { href: '/dashboard/products', label: '商品' },
   { href: '/dashboard/suggestions', label: '目安箱' },
+  { href: '/dashboard/surveys', label: 'アンケート' },
   { href: '/dashboard/settings', label: '設定' },
 ];
 
@@ -22,7 +23,8 @@ export default function BottomNav() {
             <li key={tab.href} className="flex-1">
               <Link
                 href={tab.href}
-                className={`flex min-h-[3.5rem] items-center justify-center py-3 text-center text-sm md:min-h-0 ${
+                // タブが6つあるため、狭い画面ではラベルを一段小さくして収める
+                className={`flex min-h-[3.5rem] items-center justify-center px-1 py-3 text-center text-xs leading-tight md:min-h-0 md:text-sm ${
                   active ? 'font-bold text-gray-900' : 'text-gray-500'
                 }`}
               >

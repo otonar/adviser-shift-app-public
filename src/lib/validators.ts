@@ -4,6 +4,7 @@ import {
   TRAINING_ROLES,
   SUGGESTION_CATEGORIES,
   SUGGESTION_TYPES,
+  SURVEY_ANSWER_TYPES,
 } from '@/types';
 
 // 全 API Route Handler はここで定義した zod スキーマでバリデーションする。
@@ -178,6 +179,62 @@ export const updateSuggestionSchema = z
     message: '更新項目がありません',
   });
 export type UpdateSuggestionInput = z.infer<typeof updateSuggestionSchema>;
+
+// ===== 当日アンケート結果 =====
+
+// 質問項目マスタ（管理者）。answer_type は後から変えない（過去の回の値の意味が変わるため）。
+export const createSurveyQuestionSchema = z.object({
+  label: z.string().trim().min(1, '項目名は必須です').max(200, '項目名は200文字以内'),
+  answer_type: z.enum(SURVEY_ANSWER_TYPES),
+  unit: z.string().trim().max(10, '単位は10文字以内').nullable().optional(),
+  sort_order: z.number().int().min(0).max(9999).optional(),
+});
+export type CreateSurveyQuestionInput = z.infer<typeof createSurveyQuestionSchema>;
+
+export const updateSurveyQuestionSchema = z
+  .object({
+    label: z.string().trim().min(1).max(200).optional(),
+    unit: z.string().trim().max(10).nullable().optional(),
+    sort_order: z.number().int().min(0).max(9999).optional(),
+    is_active: z.boolean().optional(),
+  })
+  .refine((v) => Object.keys(v).length > 0, {
+    message: '更新項目がありません',
+  });
+export type UpdateSurveyQuestionInput = z.infer<typeof updateSurveyQuestionSchema>;
+
+// 項目ごとの値。number_value / text_value とも null は「未入力」（保存せず削除）。
+const surveyAnswerSchema = z.object({
+  question_id: z.string().uuid(),
+  number_value: z.number().finite().nullable().optional(),
+  text_value: z.string().trim().max(2000, '記述は2000文字以内').nullable().optional(),
+});
+
+export const createSurveySchema = z.object({
+  date: dateStr,
+  title: z.string().trim().min(1, 'タイトルは必須です').max(100, 'タイトルは100文字以内'),
+  note: z.string().trim().max(2000, '概要は2000文字以内').nullable().optional(),
+  respondent_count: z.number().int().min(0).max(1000000).nullable().optional(),
+  scope: z.enum(['all', 'core']).default('all'),
+});
+export type CreateSurveyInput = z.infer<typeof createSurveySchema>;
+
+// 更新（管理者）。answers を渡すと、渡した項目だけを upsert / 未入力なら削除する。
+// status を 'published' にすると公開（published_at を打つ）、'draft' で下書きに戻す。
+export const updateSurveySchema = z
+  .object({
+    date: dateStr.optional(),
+    title: z.string().trim().min(1).max(100).optional(),
+    note: z.string().trim().max(2000).nullable().optional(),
+    respondent_count: z.number().int().min(0).max(1000000).nullable().optional(),
+    scope: z.enum(['all', 'core']).optional(),
+    status: z.enum(['draft', 'published']).optional(),
+    answers: z.array(surveyAnswerSchema).max(200).optional(),
+  })
+  .refine((v) => Object.keys(v).length > 0, {
+    message: '更新項目がありません',
+  });
+export type UpdateSurveyInput = z.infer<typeof updateSurveySchema>;
 
 // ===== ユーザー設定（自分） =====
 

@@ -10,6 +10,7 @@ const links = [
   { href: '/admin/members', label: 'メンバー' },
   { href: '/admin/notifications', label: '通知' },
   { href: '/admin/suggestions', label: '目安箱' },
+  { href: '/admin/surveys', label: 'アンケート' },
 ];
 
 export default function AdminSidebar() {

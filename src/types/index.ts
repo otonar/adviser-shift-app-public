@@ -44,6 +44,18 @@ export type SuggestionScope = 'all' | 'core';
 // 'open' = 未対応 / 'done' = 対応済み
 export type SuggestionStatus = 'open' | 'done';
 
+// =====================
+// 当日アンケート結果
+// =====================
+// 回答の型: 'number' = 集計値（平均点・割合・件数など。unit に単位）
+//           'text'   = 自由記述（コメント抜粋・総評など）
+export const SURVEY_ANSWER_TYPES = ['number', 'text'] as const;
+export type SurveyAnswerType = (typeof SURVEY_ANSWER_TYPES)[number];
+// 'draft' = 下書き（管理者のみ）/ 'published' = 公開（スタッフが閲覧可）
+export type SurveyStatus = 'draft' | 'published';
+// 閲覧範囲。目安箱と同じ判定（CORE_ROLE を持つか）を使う。
+export type SurveyScope = 'all' | 'core';
+
 export type SlotType = 'day' | 'training';
 export type AssignmentStatus = 'open' | 'draft' | 'published';
 export type NotificationType =
@@ -135,6 +147,40 @@ export interface Suggestion {
   status: SuggestionStatus;
   admin_reply: string | null; // 管理者からの返答（1件・編集可）
   replied_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SurveyQuestion {
+  id: string;
+  label: string;
+  answer_type: SurveyAnswerType;
+  unit: string | null; // 'number' のときの単位（「点」「%」「件」など）
+  sort_order: number;
+  is_active: boolean; // false = アーカイブ（新規入力欄に出さない。過去の値は残る）
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Survey {
+  id: string;
+  date: string; // YYYY-MM-DD（実施日・JST）
+  title: string;
+  note: string | null;
+  respondent_count: number | null;
+  status: SurveyStatus;
+  scope: SurveyScope;
+  published_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SurveyAnswer {
+  id: string;
+  survey_id: string;
+  question_id: string;
+  number_value: number | null;
+  text_value: string | null;
   created_at: string;
   updated_at: string;
 }
