@@ -6,6 +6,7 @@ import type { SlotType } from '@/types';
 import TargetUserSelector, {
   type SelectableUser,
 } from './TargetUserSelector';
+import TimeSelect from '../ui/TimeSelect';
 
 type Slot = {
   id: string;
@@ -182,23 +183,11 @@ export default function AdminShifts() {
           <div className="flex gap-2">
             <label className="flex flex-1 flex-col gap-1 text-sm">
               開始
-              <input
-                type="time"
-                value={startTime}
-                onChange={(e) => setStartTime(e.target.value)}
-                required
-                className="rounded border px-3 py-2"
-              />
+              <TimeSelect value={startTime} onChange={setStartTime} required />
             </label>
             <label className="flex flex-1 flex-col gap-1 text-sm">
               終了
-              <input
-                type="time"
-                value={endTime}
-                onChange={(e) => setEndTime(e.target.value)}
-                required
-                className="rounded border px-3 py-2"
-              />
+              <TimeSelect value={endTime} onChange={setEndTime} required />
             </label>
           </div>
           <label className="flex flex-col gap-1 text-sm">

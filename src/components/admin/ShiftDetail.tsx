@@ -8,6 +8,7 @@ import { rolesForSlotType } from '@/lib/role-assignment';
 import TargetUserSelector, {
   type SelectableUser,
 } from './TargetUserSelector';
+import TimeSelect from '../ui/TimeSelect';
 
 type Slot = {
   id: string;
@@ -257,24 +258,16 @@ export default function ShiftDetail({ shiftId }: { shiftId: string }) {
             <div className="flex gap-2">
               <label className="flex flex-1 flex-col gap-1 text-sm">
                 開始
-                <input
-                  type="time"
+                <TimeSelect
                   value={infoForm.start_time}
-                  onChange={(e) =>
-                    setInfoForm({ ...infoForm, start_time: e.target.value })
-                  }
-                  className="rounded border px-3 py-2"
+                  onChange={(v) => setInfoForm({ ...infoForm, start_time: v })}
                 />
               </label>
               <label className="flex flex-1 flex-col gap-1 text-sm">
                 終了
-                <input
-                  type="time"
+                <TimeSelect
                   value={infoForm.end_time}
-                  onChange={(e) =>
-                    setInfoForm({ ...infoForm, end_time: e.target.value })
-                  }
-                  className="rounded border px-3 py-2"
+                  onChange={(v) => setInfoForm({ ...infoForm, end_time: v })}
                 />
               </label>
             </div>
