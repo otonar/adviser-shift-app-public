@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import LogoutButton from '@/components/auth/LogoutButton';
 
 type Me = {
   id: string;
@@ -93,6 +94,12 @@ export default function SettingsPanel({
         addFriendUrl={addFriendUrl}
         onChanged={load}
       />
+      <Section title="ログアウト">
+        <p className="mb-3 text-sm text-gray-600">
+          この端末からログアウトします。次に使うときは名前とパスワードでログインしてください。
+        </p>
+        <LogoutButton />
+      </Section>
       <WithdrawSection
         onWithdrawn={() => {
           router.push('/');

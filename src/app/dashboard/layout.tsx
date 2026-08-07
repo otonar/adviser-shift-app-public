@@ -3,7 +3,6 @@ import Link from 'next/link';
 import { authenticateUser } from '@/lib/middleware';
 import BottomNav from '@/components/layout/BottomNav';
 import GearIcon from '@/components/ui/GearIcon';
-import LogoutButton from '@/components/auth/LogoutButton';
 
 // スタッフ用レイアウト。未認証はログインへ。スマホは下部ナビ、PC は上部ナビ。
 export default async function DashboardLayout({
@@ -15,8 +14,8 @@ export default async function DashboardLayout({
   if (!auth.ok) redirect('/');
 
   return (
-    // 下部ナビ（高さ 68px ＋ セーフエリア）に本文が隠れないよう余白を取る
-    <div className="min-h-screen pb-24 md:pb-0">
+    // 下部ナビ（高さ 80px ＋ セーフエリア）に本文が隠れないよう余白を取る
+    <div className="min-h-screen pb-28 md:pb-0">
       <header className="border-b bg-white">
         <div className="mx-auto flex max-w-2xl items-center justify-between p-3">
           {/* タイトルはダッシュボードへの入口を兼ねる */}
@@ -38,7 +37,6 @@ export default async function DashboardLayout({
             >
               <GearIcon className="h-6 w-6" />
             </Link>
-            <LogoutButton />
           </div>
         </div>
         <div className="hidden md:block">
