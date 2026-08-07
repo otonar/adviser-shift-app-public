@@ -35,16 +35,21 @@ export default function BottomNav({
           const bar = variant === 'bottom' ? 'border-t-2' : 'border-b-2';
           return (
             <li key={tab.href} className="flex-1">
+              {/*
+                スマホでは指で押す前提なので、セル全体（幅いっぱい・高さ 68px）を
+                タップ領域にする。iOS/Android の推奨は 44〜48px 四方なので余裕を取る。
+                PC ではポインタで押すため、md 以上では詰めて高さを抑える。
+              */}
               <Link
                 href={tab.href}
                 aria-current={active ? 'page' : undefined}
-                className={`flex min-h-[3.5rem] flex-col items-center justify-center gap-0.5 px-1 py-2 text-center text-[11px] leading-tight md:min-h-0 md:text-xs ${bar} ${
+                className={`flex min-h-[4.25rem] touch-manipulation flex-col items-center justify-center gap-1 px-1 py-2 text-center text-xs leading-tight transition-colors active:bg-gray-100 md:min-h-0 md:gap-0.5 md:py-2.5 ${bar} ${
                   active
                     ? 'border-gray-900 bg-gray-50 font-bold text-gray-900'
                     : 'border-transparent text-gray-500'
                 }`}
               >
-                <tab.Icon className="h-6 w-6" />
+                <tab.Icon className="h-7 w-7 md:h-6 md:w-6" />
                 {tab.label}
               </Link>
             </li>
