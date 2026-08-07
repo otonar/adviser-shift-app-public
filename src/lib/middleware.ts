@@ -5,7 +5,7 @@ import {
   verifyUserToken,
   verifyAdminToken,
 } from './auth';
-import { getSupabaseAdmin } from './supabase';
+import { getUserRow } from './user-row';
 import { jsonError } from './http';
 
 // Route Handler 内で呼ぶ認証ヘルパー（Node ランタイム）。
@@ -35,14 +35,11 @@ export async function authenticateUser(): Promise<UserAuth> {
     const payload = verifyUserToken(token);
     if (!payload) return { ok: false, response: unauthorized() };
 
-    const supabase = getSupabaseAdmin();
-    const { data, error } = await supabase
-      .from('users')
-      .select('is_active, token_version')
-      .eq('id', payload.userId)
-      .single();
+    // 同一リクエスト内で複数回呼ばれても users は1回しか引かない（user-row.ts の cache）。
+    // リクエストをまたぐキャッシュではないので、脱退・パスワード変更は即座に効く。
+    const data = await getUserRow(payload.userId);
 
-    if (error || !data || !data.is_active) {
+    if (!data || !data.is_active) {
       return { ok: false, response: unauthorized() };
     }
 
