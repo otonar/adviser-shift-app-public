@@ -1,0 +1,44 @@
+# push 前に通すべきチェックを自動で回す。
+# main への push と、すべての Pull Request で実行される。
+#
+# 秘密情報は一切使わない:
+#   このアプリは Supabase / LINE が未設定でもビルドが通る設計（env は実行時に
+#   requireEnv で読む）。CI に本番の値を置く必要はない。
+#   将来ビルド時に env が要るコードが入ったら、ここに**ダミー値**を足すこと
+#   （本物のキーをリポジトリや Actions のログに持ち込まない）。
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# 同じブランチで新しい push があったら、古い実行は打ち切る
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: typecheck / lint / build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # ローカル・Vercel と同じ Node 24 系に揃える
+          node-version: '24'
+          cache: npm
+
+      # package-lock.json のとおりに入れる（勝手に更新させない）
+      - run: npm ci
+
+      - name: 型チェック
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: ビルド
+        run: npm run build
