@@ -19,6 +19,7 @@ type PublicSuggestion = {
   admin_reply: string | null;
   created_at: string;
   author_name: string | null;
+  mine?: boolean; // 自分の投稿（閲覧範囲を問わず本人には見える）
 };
 
 function formatDateJst(iso: string): string {
@@ -83,6 +84,11 @@ export default function StaffSuggestionsPage() {
               {s.scope === 'core' && (
                 <span className="rounded bg-purple-100 px-2 py-0.5 text-purple-700">
                   コア限定
+                </span>
+              )}
+              {s.mine && (
+                <span className="rounded bg-gray-800 px-2 py-0.5 text-white">
+                  自分の投稿
                 </span>
               )}
               {s.status === 'done' && (
