@@ -1,51 +1,27 @@
-'use client';
-
-import { useEffect, useState } from 'react';
+import { redirect } from 'next/navigation';
+import { authenticateUser } from '@/lib/middleware';
+import { fetchVisibleProducts, type VisibleProduct } from '@/lib/staff-queries';
 import { formatStockFreshness } from '@/lib/datetime';
 
-type Product = {
-  id: string;
-  name: string;
-  description: string | null;
-  category: string | null;
-  stock: number;
-  out_of_stock: boolean;
-  stock_updated_at: string | null;
-};
+// 商品情報。押して動く要素が無いのでサーバーだけで組み立てる
+// （表示してから /api/products を取りに行く形をやめ、往復を1回分減らした）。
+export default async function StaffProductsPage() {
+  const auth = await authenticateUser();
+  if (!auth.ok) redirect('/');
 
-export default function StaffProductsPage() {
-  const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch('/api/products?scope=mine');
-        if (!res.ok) {
-          if (!cancelled) setError('読み込みに失敗しました');
-          return;
-        }
-        const data = await res.json();
-        if (!cancelled) setProducts(data.products ?? []);
-      } catch {
-        if (!cancelled) setError('通信エラーが発生しました');
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  let products: VisibleProduct[] = [];
+  let failed = false;
+  try {
+    products = await fetchVisibleProducts();
+  } catch {
+    failed = true;
+  }
 
   return (
     <div className="flex flex-col gap-4">
       <h1 className="text-xl font-bold">商品情報</h1>
-      {loading && <p className="text-sm text-gray-500">読み込み中…</p>}
-      {error && <p className="text-sm text-red-600">{error}</p>}
-      {!loading && products.length === 0 && (
+      {failed && <p className="text-sm text-red-600">読み込みに失敗しました</p>}
+      {!failed && products.length === 0 && (
         <p className="text-sm text-gray-500">商品はありません。</p>
       )}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

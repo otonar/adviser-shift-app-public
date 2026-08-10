@@ -2,7 +2,7 @@ import { getSupabaseAdmin } from '@/lib/supabase';
 import { authenticateUser, authenticateAdmin } from '@/lib/middleware';
 import { createSuggestionSchema } from '@/lib/validators';
 import { jsonError, jsonOk, parseBody, verifyOrigin, forbiddenOrigin, withRoute } from '@/lib/http';
-import { visibleScopes } from '@/lib/scope';
+import { fetchVisibleSuggestions } from '@/lib/staff-queries';
 
 // 指定 user_id 群の表示名を一括取得して Map で返す（埋め込み join の関係型の曖昧さを避ける）。
 async function fetchAuthorNames(
@@ -57,49 +57,12 @@ async function getHandler(req: Request) {
   const user = await authenticateUser();
   if (!user.ok) return user.response;
 
-  const supabase = getSupabaseAdmin();
-  // コアメンバーなら 'core' 限定の投稿も閲覧できる
-  const scopes = await visibleScopes(user.userId);
-
-  // 「閲覧範囲に入る投稿」＋「自分の投稿（範囲を問わず）」。
-  // 自分の投稿が自分に見えないと、出したのに消えたように見えて分かりにくいため。
-  // OR 条件を文字列で組み立てず、2回引いて id で重複を除く（件数は小さい）。
-  const columns =
-    'id, category, type, show_name, scope, content, status, admin_reply, replied_at, created_at, user_id';
-  const [{ data: inScope, error: scopeError }, { data: own, error: ownError }] =
-    await Promise.all([
-      supabase.from('suggestions').select(columns).in('scope', scopes),
-      supabase.from('suggestions').select(columns).eq('user_id', user.userId),
-    ]);
-  if (scopeError || ownError) {
+  // 画面（/dashboard/suggestions）と同じクエリを使う
+  try {
+    return jsonOk({ suggestions: await fetchVisibleSuggestions(user.userId) });
+  } catch {
     return jsonError('取得に失敗しました', 500, 'FETCH_FAILED');
   }
-
-  const byId = new Map<string, NonNullable<typeof inScope>[number]>();
-  for (const r of [...(inScope ?? []), ...(own ?? [])]) byId.set(r.id, r);
-  const rows = [...byId.values()].sort((a, b) =>
-    a.created_at < b.created_at ? 1 : a.created_at > b.created_at ? -1 : 0
-  );
-
-  const names = await fetchAuthorNames(
-    rows.filter((r) => r.show_name).map((r) => r.user_id)
-  );
-  const suggestions = rows.map((r) => ({
-    id: r.id,
-    category: r.category,
-    type: r.type,
-    show_name: r.show_name,
-    scope: r.scope,
-    content: r.content,
-    status: r.status,
-    admin_reply: r.admin_reply,
-    replied_at: r.replied_at,
-    created_at: r.created_at,
-    author_name: r.show_name ? (names.get(r.user_id) ?? null) : null,
-    // 自分の投稿である印（名前非表示でも本人には分かるようにする）
-    mine: r.user_id === user.userId,
-  }));
-  return jsonOk({ suggestions });
 }
 
 // POST: 目安箱へ投稿（スタッフ）。名前非表示でも user_id は保存する。

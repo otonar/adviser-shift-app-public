@@ -1,6 +1,7 @@
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { authenticateUser, authenticateAdmin } from '@/lib/middleware';
 import { createProductSchema } from '@/lib/validators';
+import { fetchVisibleProducts } from '@/lib/staff-queries';
 import { jsonError, jsonOk, parseBody, verifyOrigin, forbiddenOrigin, withRoute } from '@/lib/http';
 
 // GET: 商品一覧。
@@ -25,19 +26,12 @@ async function getHandler(req: Request) {
   const user = await authenticateUser();
   if (!user.ok) return user.response;
 
-  const supabase = getSupabaseAdmin();
-  const { data, error } = await supabase
-    .from('products')
-    .select('id, name, description, category, stock, stock_updated_at')
-    .eq('is_visible', true)
-    .order('name', { ascending: true });
-  if (error) return jsonError('取得に失敗しました', 500, 'FETCH_FAILED');
-
-  const products = (data ?? []).map((p) => ({
-    ...p,
-    out_of_stock: p.stock <= 0,
-  }));
-  return jsonOk({ products });
+  // 画面（/dashboard/products）と同じクエリを使う
+  try {
+    return jsonOk({ products: await fetchVisibleProducts() });
+  } catch {
+    return jsonError('取得に失敗しました', 500, 'FETCH_FAILED');
+  }
 }
 
 // POST: 商品追加（管理者）。

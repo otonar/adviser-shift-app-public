@@ -1,6 +1,6 @@
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { authenticateUser, authenticateAdmin } from '@/lib/middleware';
-import { visibleScopes } from '@/lib/scope';
+import { fetchVisibleSurveys } from '@/lib/staff-queries';
 import { createSurveySchema } from '@/lib/validators';
 import { jsonError, jsonOk, parseBody, verifyOrigin, forbiddenOrigin, withRoute } from '@/lib/http';
 
@@ -29,16 +29,12 @@ async function getHandler(req: Request) {
   const user = await authenticateUser();
   if (!user.ok) return user.response;
 
-  const supabase = getSupabaseAdmin();
-  const scopes = await visibleScopes(user.userId);
-  const { data, error } = await supabase
-    .from('surveys')
-    .select(LIST_COLUMNS)
-    .eq('status', 'published')
-    .in('scope', scopes)
-    .order('date', { ascending: false });
-  if (error) return jsonError('取得に失敗しました', 500, 'FETCH_FAILED');
-  return jsonOk({ surveys: data ?? [] });
+  // 画面（/dashboard/surveys）と同じクエリを使う
+  try {
+    return jsonOk({ surveys: await fetchVisibleSurveys(user.userId) });
+  } catch {
+    return jsonError('取得に失敗しました', 500, 'FETCH_FAILED');
+  }
 }
 
 // POST: アンケート結果を新規作成（管理者）。作成時は必ず下書き。
