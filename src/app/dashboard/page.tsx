@@ -134,13 +134,16 @@ export default async function Dashboard() {
         )}
       </section>
 
-      {/* そのほかの入口 */}
-      <div className="grid grid-cols-3 gap-2 text-center text-sm">
+      {/* そのほかの入口。下部タブは4つに保つ方針なので、増える導線はここに置く */}
+      <div className="grid grid-cols-2 gap-2 text-center text-sm">
         <Link href="/dashboard/products" className="rounded border bg-white p-3">
           商品
         </Link>
         <Link href="/dashboard/suggestions" className="rounded border bg-white p-3">
           目安箱
+        </Link>
+        <Link href="/dashboard/links" className="rounded border bg-white p-3">
+          リンク集
         </Link>
         <Link href="/dashboard/settings" className="rounded border bg-white p-3">
           設定
