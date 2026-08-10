@@ -34,7 +34,8 @@ export default async function Dashboard() {
   const [roles, pending, surveys] = await Promise.all([
     fetchMyPublishedRoles(auth.userId),
     fetchMyPendingSlots(auth.userId),
-    fetchVisibleSurveys(auth.userId, 2),
+    // ホームは他の情報も出すので、アンケートの取得失敗だけで画面を壊さない
+    fetchVisibleSurveys(auth.userId, 2).catch(() => []),
   ]);
   const next = nextRole(roles);
 
