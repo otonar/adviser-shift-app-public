@@ -28,9 +28,15 @@ type Target = {
   available: boolean | null;
   note: string | null;
   submitted: boolean;
+  is_active: boolean;
 };
 type RoleReq = { role: string; required_count: number };
-type Assignment = { user_id: string; name: string; role: string };
+type Assignment = {
+  user_id: string;
+  name: string;
+  role: string;
+  is_active: boolean;
+};
 type Detail = {
   slot: Slot;
   targets: Target[];
@@ -44,6 +50,8 @@ export default function ShiftDetail({ shiftId }: { shiftId: string }) {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // 失敗ではないが伝えたいこと（脱退者が割り振りに残っていた、など）
+  const [notice, setNotice] = useState<string | null>(null);
 
   // 編集用 state
   const [reqs, setReqs] = useState<Record<string, number>>({});
@@ -92,7 +100,12 @@ export default function ShiftDetail({ shiftId }: { shiftId: string }) {
     })();
   }, [load]);
 
-  async function call(url: string, method: string, body?: unknown) {
+  // 成功でレスポンス本文、失敗で null を返す（`if (await call(...))` はそのまま使える）。
+  async function call(
+    url: string,
+    method: string,
+    body?: unknown
+  ): Promise<Record<string, unknown> | null> {
     setBusy(true);
     setError(null);
     try {
@@ -101,15 +114,15 @@ export default function ShiftDetail({ shiftId }: { shiftId: string }) {
         headers: body ? { 'Content-Type': 'application/json' } : undefined,
         body: body ? JSON.stringify(body) : undefined,
       });
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
         setError(data.error ?? '操作に失敗しました');
-        return false;
+        return null;
       }
-      return true;
+      return data as Record<string, unknown>;
     } catch {
       setError('通信エラーが発生しました');
-      return false;
+      return null;
     } finally {
       setBusy(false);
     }
@@ -139,7 +152,17 @@ export default function ShiftDetail({ shiftId }: { shiftId: string }) {
   }
 
   async function publish() {
-    if (!window.confirm('確定してスタッフに公開します。よろしいですか？')) return;
+    setNotice(null);
+    // 脱退した人が割り振りに残ったまま確定すると、名簿に名前が残るのに本人はログイン
+    // できず通知も届かない。確定する前に気づけるよう、ここで名前を出して確認する。
+    const leaving = editAssign.filter((a) => !a.is_active).map((a) => a.name);
+    const warn =
+      leaving.length > 0
+        ? `⚠ 脱退した人が割り振りに残っています: ${leaving.join('・')}\n` +
+          'このまま確定すると名簿に名前が残りますが、本人には通知されません。\n' +
+          '外す場合は「キャンセル」を押し、一覧の「削除」で外してから確定してください。\n\n'
+        : '';
+    if (!window.confirm(`${warn}確定してスタッフに公開します。よろしいですか？`)) return;
     // 画面上で変更した役割を先に保存してから公開する（未保存の編集が破棄されるのを防ぐ）
     const assignments = editAssign.map((a) => ({
       userId: a.user_id,
@@ -147,7 +170,17 @@ export default function ShiftDetail({ shiftId }: { shiftId: string }) {
     }));
     if (!(await call(`/api/assignments/${shiftId}`, 'PATCH', { assignments })))
       return;
-    if (await call(`/api/assignments/${shiftId}/publish`, 'POST')) await load();
+    const result = await call(`/api/assignments/${shiftId}/publish`, 'POST');
+    if (!result) return;
+    const inactive = Array.isArray(result.inactive)
+      ? (result.inactive as string[])
+      : [];
+    if (inactive.length > 0) {
+      setNotice(
+        `脱退した人が割り振りに含まれていたため、その人には通知していません: ${inactive.join('・')}`
+      );
+    }
+    await load();
   }
 
   async function reset() {
@@ -201,7 +234,11 @@ export default function ShiftDetail({ shiftId }: { shiftId: string }) {
   const roles = rolesForSlotType(slot.slot_type);
   const status = slot.assignment_status;
   const assignedIds = new Set(editAssign.map((a) => a.user_id));
-  const availableToAdd = targets.filter((t) => !assignedIds.has(t.id));
+  // 脱退した人は手動追加の候補にも出さない（自動割り振りが外すのと揃える）
+  const availableToAdd = targets.filter(
+    (t) => !assignedIds.has(t.id) && t.is_active
+  );
+  const inactiveTargets = targets.filter((t) => !t.is_active);
 
   return (
     <div className="flex flex-col gap-6">
@@ -221,6 +258,11 @@ export default function ShiftDetail({ shiftId }: { shiftId: string }) {
         </span>
       </div>
       {error && <p className="text-sm text-red-600">{error}</p>}
+      {notice && (
+        <p className="rounded border border-amber-300 bg-amber-50 p-2 text-sm text-amber-800">
+          {notice}
+        </p>
+      )}
 
       {/* 基本情報の編集（掲示後も変更可） */}
       <section className="rounded border bg-white p-4">
@@ -332,7 +374,16 @@ export default function ShiftDetail({ shiftId }: { shiftId: string }) {
       {/* 提出状況 */}
       <section className="rounded border bg-white p-4">
         <div className="mb-2 flex items-center justify-between">
-          <h2 className="font-bold">提出状況（{targets.length} 名）</h2>
+          <h2 className="font-bold">
+            提出状況（{targets.length} 名
+            {inactiveTargets.length > 0 && (
+              <span className="font-normal text-gray-500">
+                {' '}
+                / うち脱退 {inactiveTargets.length} 名
+              </span>
+            )}
+            ）
+          </h2>
           <button
             type="button"
             onClick={() => {
@@ -374,7 +425,10 @@ export default function ShiftDetail({ shiftId }: { shiftId: string }) {
             <tbody>
               {targets.map((t) => (
                 <tr key={t.id} className="border-b last:border-b-0">
-                  <td className="py-1">{t.name}</td>
+                  <td className={`py-1 ${t.is_active ? '' : 'text-gray-500'}`}>
+                    {t.name}
+                    {!t.is_active && <InactiveBadge />}
+                  </td>
                   <td className="py-1">
                     {!t.submitted ? (
                       <span className="text-gray-400">未提出</span>
@@ -420,7 +474,10 @@ export default function ShiftDetail({ shiftId }: { shiftId: string }) {
               <tbody>
                 {editAssign.map((a, idx) => (
                   <tr key={a.user_id} className="border-b last:border-b-0">
-                    <td className="py-1">{a.name}</td>
+                    <td className={`py-1 ${a.is_active ? '' : 'text-gray-500'}`}>
+                      {a.name}
+                      {!a.is_active && <InactiveBadge />}
+                    </td>
                     <td className="py-1">
                       {status === 'draft' ? (
                         <select
@@ -472,7 +529,13 @@ export default function ShiftDetail({ shiftId }: { shiftId: string }) {
                     if (t) {
                       setEditAssign([
                         ...editAssign,
-                        { user_id: t.id, name: t.name, role: roles[0] },
+                        {
+                          user_id: t.id,
+                          name: t.name,
+                          role: roles[0],
+                          // 候補に出るのは在籍者だけ（availableToAdd で絞っている）
+                          is_active: true,
+                        },
                       ]);
                     }
                     e.target.value = '';
@@ -535,5 +598,15 @@ export default function ShiftDetail({ shiftId }: { shiftId: string }) {
         </button>
       </div>
     </div>
+  );
+}
+
+// 脱退した人が対象者や割り振りに残っていることがある（脱退しても行は消えない）。
+// 名前だけでは在籍者と区別が付かないので、一覧では必ずこれを添える。
+function InactiveBadge() {
+  return (
+    <span className="ml-1 whitespace-nowrap rounded bg-gray-200 px-1.5 py-0.5 text-xs text-gray-700">
+      脱退
+    </span>
   );
 }

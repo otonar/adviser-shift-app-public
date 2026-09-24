@@ -218,6 +218,9 @@ export function computeAnalytics(input: AnalyticsInput): Analytics {
   const assignedCount = new Map<string, number>(); // `${slotId}:${role}` → 人数
   for (const a of assignmentRows) {
     if (a.role === NO_ROLE) continue; // 役割なしは必要人数の充足に数えない
+    // 脱退した人は「埋まっている」に数えない。脱退しても割り振りの行は残るので、
+    // 数えてしまうと実際は欠員なのに充足して見える（＝欠員に気づけなくなる）。
+    if (!activeIds.has(a.user_id)) continue;
     const key = `${a.shift_slot_id}:${a.role}`;
     assignedCount.set(key, (assignedCount.get(key) ?? 0) + 1);
   }
