@@ -9,6 +9,7 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test:analytics": "node scripts/test-analytics.mjs",
+    "icons": "node scripts/generate-icons.mjs",
     "format": "prettier --write ."
   },
   "dependencies": {
