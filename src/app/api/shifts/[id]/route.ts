@@ -27,7 +27,7 @@ async function getHandler(_req: Request, { params }: Params) {
   // 対象スタッフ（ユーザー情報込み）
   const { data: targetRows } = await supabase
     .from('shift_target_users')
-    .select('user_id, users(id, name, day_roles, training_roles)')
+    .select('user_id, users(id, name, day_roles, training_roles, is_active)')
     .eq('shift_slot_id', slotId);
 
   // 提出状況
@@ -46,7 +46,7 @@ async function getHandler(_req: Request, { params }: Params) {
   // 割り振り結果（ユーザー名込み）
   const { data: assignRows } = await supabase
     .from('shift_assignments')
-    .select('user_id, role, users(name)')
+    .select('user_id, role, users(name, is_active)')
     .eq('shift_slot_id', slotId);
 
   // 対象スタッフごとに提出状況をマージ
@@ -62,12 +62,20 @@ async function getHandler(_req: Request, { params }: Params) {
       available: sub ? sub.available : null,
       note: sub?.note ?? null,
       submitted: Boolean(sub),
+      // 脱退した人が対象者・割り振りに残っていても画面では在籍者と区別が付かないため、
+      // 画面で「脱退」と出せるように返す。
+      is_active: u?.is_active !== false,
     };
   });
 
   const assignments = (assignRows ?? []).map((a) => {
     const u = Array.isArray(a.users) ? a.users[0] : a.users;
-    return { user_id: a.user_id, name: u?.name ?? '(不明)', role: a.role };
+    return {
+      user_id: a.user_id,
+      name: u?.name ?? '(不明)',
+      role: a.role,
+      is_active: u?.is_active !== false,
+    };
   });
 
   return jsonOk({

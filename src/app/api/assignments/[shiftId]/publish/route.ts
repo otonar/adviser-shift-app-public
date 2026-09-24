@@ -39,7 +39,7 @@ async function postHandler(_req: Request, { params }: Params) {
   // 割り振られたスタッフ（LINE 連携済みのみ通知）
   const { data: assignments } = await supabase
     .from('shift_assignments')
-    .select('user_id, role, users(line_user_id)')
+    .select('user_id, role, users(name, line_user_id, is_active)')
     .eq('shift_slot_id', slotId);
 
   const startHm = slot.start_time.slice(0, 5);
@@ -59,8 +59,16 @@ async function postHandler(_req: Request, { params }: Params) {
     status: 'sent' | 'failed';
   }[] = [];
 
+  // 脱退した人が割り振りに残っていた場合、通知は送らずに名前を返す（画面で警告を出す）。
+  // 公開そのものは止めない＝掲示済みの枠を編集して出し直す運用があるため。
+  const inactiveNames: string[] = [];
+
   for (const a of assignments ?? []) {
     const u = Array.isArray(a.users) ? a.users[0] : a.users;
+    if (u?.is_active === false) {
+      inactiveNames.push(u?.name ?? '(不明)');
+      continue;
+    }
     const lineUserId = u?.line_user_id ?? null;
     const message = buildMessage(a.role);
     if (!lineUserId) {
@@ -104,7 +112,7 @@ async function postHandler(_req: Request, { params }: Params) {
   }
 
   const skipped = (assignments?.length ?? 0) - notified;
-  return jsonOk({ ok: true, notified, skipped });
+  return jsonOk({ ok: true, notified, skipped, inactive: inactiveNames });
 }
 
 export const POST = withRoute(postHandler);

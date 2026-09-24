@@ -32,7 +32,7 @@ async function postHandler(req: Request) {
   // 対象スタッフ（役割属性込み）
   const { data: targetRows } = await supabase
     .from('shift_target_users')
-    .select('user_id, users(id, day_roles, training_roles)')
+    .select('user_id, users(id, day_roles, training_roles, is_active)')
     .eq('shift_slot_id', shift_slot_id);
 
   const { data: subs } = await supabase
@@ -40,14 +40,20 @@ async function postHandler(req: Request) {
     .select('user_id, available')
     .eq('shift_slot_id', shift_slot_id);
 
-  const users = (targetRows ?? []).map((t) => {
-    const u = Array.isArray(t.users) ? t.users[0] : t.users;
-    return {
-      userId: t.user_id,
-      dayRoles: u?.day_roles ?? [],
-      trainingRoles: u?.training_roles ?? [],
-    };
-  });
+  // 脱退した人は候補から外す。対象者として枠に残っていても、○を出したまま脱退すると
+  // そのまま割り振られてしまうため（画面上は在籍者と見分けが付かず気づけない）。
+  // 「脱退と分かっている人」だけを外す＝ユーザー行が引けなかった場合は従来どおり残す。
+  const users = (targetRows ?? [])
+    .map((t) => {
+      const u = Array.isArray(t.users) ? t.users[0] : t.users;
+      return {
+        userId: t.user_id,
+        dayRoles: u?.day_roles ?? [],
+        trainingRoles: u?.training_roles ?? [],
+        isActive: u?.is_active !== false,
+      };
+    })
+    .filter((u) => u.isActive);
 
   const result = assignRoles(
     slot.slot_type as SlotType,

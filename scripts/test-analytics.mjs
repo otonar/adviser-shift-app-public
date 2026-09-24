@@ -110,6 +110,9 @@ const input = {
     { shift_slot_id: 'sPublished', user_id: 'u1', role: '役割なし' },
     // 調整中の枠の割り当ては「役割の偏り」には数えない（確定のみ）
     { shift_slot_id: 'sDraft', user_id: 'u1', role: '受付' },
+    // 脱退した人の割り当て。脱退しても行は残るが「埋まっている」に数えてはいけない
+    // （数えると実際は欠員なのに充足して見える）
+    { shift_slot_id: 'sDraft', user_id: 'u4', role: '受付' },
   ],
 };
 
@@ -161,12 +164,18 @@ check(
   a.roleBalance.map((r) => r.name),
   ['あき', 'いとう', 'うえだ']
 );
+check(
+  '脱退者は一覧に出ない',
+  a.roleBalance.some((r) => r.name === 'やめた人'),
+  false
+);
 
 console.log('\n■ 役割ごとの充足（受付中の枠は対象外）');
 const uketsuke = a.shortfalls.find((s) => s.role === '受付');
 const pc = a.shortfalls.find((s) => s.role === 'PC');
 check('受付 required（確定2＋調整中2、受付中の5は含めない）', uketsuke.required, 4);
 check('受付 assigned（確定1＋調整中1）', uketsuke.assigned, 2);
+check('受付 脱退者の割り当ては充足に数えない（調整中の u4 を含めない）', uketsuke.assigned, 2);
 check('受付 足りない枠の数（確定・調整中の両方）', uketsuke.shortSlots, 2);
 check(
   'PC は過剰でも required を超えて数えない',
