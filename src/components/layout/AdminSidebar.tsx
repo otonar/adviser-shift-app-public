@@ -6,6 +6,7 @@ import { useState } from 'react';
 
 const links = [
   { href: '/admin/shifts', label: 'シフト' },
+  { href: '/admin/analytics', label: '分析' },
   { href: '/admin/products', label: '商品' },
   { href: '/admin/members', label: 'メンバー' },
   { href: '/admin/notifications', label: '通知' },
