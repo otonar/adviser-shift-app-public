@@ -40,9 +40,10 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      # 分析ダッシュボードの集計。数字が静かに間違う種類のコードなので回帰を見る
-      - name: 集計ロジックのテスト
-        run: npm run test:analytics
+      # 集計（分析ダッシュボード）と、シフトの中核ロジック（役割割り振り・期限計算）。
+      # どちらも壊れても画面はそれらしく表示され、数字や結果だけが静かに間違う種類のコード。
+      - name: ロジックのテスト
+        run: npm test
 
       - name: ビルド
         run: npm run build
