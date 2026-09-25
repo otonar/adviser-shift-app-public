@@ -56,6 +56,8 @@ const SECTIONS: ExternalLinkSection[] = [
   },
   {
     // TODO: アンケートの URL が決まったら url を入れて hidden を消す
+    //   公式 LINE 上で集めることになった場合は、公式 LINE の友だち追加 URL（https://lin.ee/...）を
+    //   そのまま入れればよい（QR もその URL から作られる）。title・label は案内に合わせて書き換える。
     id: 'questionnaire',
     emoji: '📝',
     title: '来場者用アンケート',
