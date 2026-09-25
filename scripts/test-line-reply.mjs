@@ -32,7 +32,7 @@ async function load(entry) {
 
 const {
   detectCommand,
-  externalUrl,
+  appLink,
   buildNextShiftsReply,
   buildPendingSlotsReply,
   buildHelpReply,
@@ -79,17 +79,17 @@ check('部分一致では反応しない', detectCommand('シフトについて�
 check('空文字には反応しない', detectCommand('   '), null);
 
 // ===== URL ===================================================================
-console.log('\n■ アプリへのリンク（externalUrl）');
+console.log('\n■ アプリへのリンク（appLink）');
 
 check(
-  '外部ブラウザで開く指定が付く',
-  externalUrl(APP, '/dashboard/shifts'),
-  'https://example.test/dashboard/shifts?openExternalBrowser=1'
+  '外部ブラウザ指定を付けない（LINE の中で開く）',
+  appLink(APP, '/dashboard/shifts'),
+  'https://example.test/dashboard/shifts'
 );
 check(
   '末尾スラッシュ付きのアプリ URL でも二重にならない',
-  externalUrl('https://example.test/', '/dashboard'),
-  'https://example.test/dashboard?openExternalBrowser=1'
+  appLink('https://example.test/', '/dashboard'),
+  'https://example.test/dashboard'
 );
 
 // ===== 直近のシフト ===========================================================
@@ -109,7 +109,7 @@ console.log('\n■ 直近のシフト（buildNextShiftsReply）');
   ok('近い順（10/3 が 10/10 より先）', text.indexOf('10/3') < text.indexOf('10/10'), text);
   ok('役割なしは「役割の指定なし」と書く', text.includes('役割の指定なし') && !text.includes('役割: 役割なし'), text);
   ok('研修の表示名', text.includes('10/10(土) 13:00〜16:00（研修）'), text);
-  ok('役割の一覧へのリンク', text.endsWith(`${APP}/dashboard/my-roles?openExternalBrowser=1`), text);
+  ok('役割の一覧へのリンク', text.endsWith(`${APP}/dashboard/my-roles`), text);
   ok('3件以下なら「ほか」は出ない', !text.includes('ほか'), text);
 }
 
@@ -150,7 +150,7 @@ console.log('\n■ 未提出の枠（buildPendingSlotsReply）');
   ok('締切が今日なら「今日まで！」（JST の暦日で判定）', text.includes('締切 10/1(木)（今日まで！）'), text);
   ok('締切が明日なら「明日まで」', text.includes('締切 10/2(金)（明日まで）'), text);
   ok('それ以降は「あと N 日」', text.includes('締切 10/3(土)（あと2日）'), text);
-  ok('提出画面へのリンク', text.endsWith(`${APP}/dashboard/shifts?openExternalBrowser=1`), text);
+  ok('提出画面へのリンク', text.endsWith(`${APP}/dashboard/shifts`), text);
 }
 
 {
@@ -167,8 +167,8 @@ console.log('\n■ そのほかの返事');
   const quoted = [...help.matchAll(/「(.+?)」/g)].map((m) => m[1]);
   ok('ヘルプに書いた言葉がすべて反応する', quoted.length > 0 && quoted.every((w) => detectCommand(w) !== null), quoted.join(' / '));
 }
-ok('未連携の人には設定画面へのリンク', buildUnlinkedReply(APP).endsWith(`${APP}/dashboard/settings?openExternalBrowser=1`));
-ok('複数連携の人にも設定画面へのリンク', buildAmbiguousReply(APP).endsWith(`${APP}/dashboard/settings?openExternalBrowser=1`));
+ok('未連携の人には設定画面へのリンク', buildUnlinkedReply(APP).endsWith(`${APP}/dashboard/settings`));
+ok('複数連携の人にも設定画面へのリンク', buildAmbiguousReply(APP).endsWith(`${APP}/dashboard/settings`));
 {
   const all = [
     buildNextShiftsReply([], TODAY, APP),

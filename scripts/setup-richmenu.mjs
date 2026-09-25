@@ -53,7 +53,7 @@ const COLORS = {
 
 // 左上 → 右上 → 左下 → 右下 の順。
 //   kind: 'reply' … 押すと text がトークに送られ、Webhook が返事をする
-//   kind: 'open'  … 押すとアプリの path を普段のブラウザで開く
+//   kind: 'open'  … 押すとアプリの path を LINE の中のブラウザで開く
 const BUTTONS = [
   { kind: 'reply', title: '直近のシフト', caption: 'トークで返事', icon: 'calendar', text: '直近のシフト' },
   { kind: 'reply', title: '未提出の枠', caption: 'トークで返事', icon: 'clock', text: '未提出の枠' },
@@ -159,10 +159,9 @@ async function checkReplyWords() {
   console.log('✓ 返事ボタンの文言はすべて Webhook のキーワードに一致');
 }
 
-function externalUrl(path) {
-  const url = new URL(path, APP_URL);
-  url.searchParams.set('openExternalBrowser', '1');
-  return url.toString();
+// LINE の中のブラウザで開く（理由は src/lib/line-reply.ts の appLink() を参照。ここと揃えること）
+function appLink(path) {
+  return new URL(path, APP_URL).toString();
 }
 
 function richMenuBody() {
@@ -178,7 +177,7 @@ function richMenuBody() {
         action:
           b.kind === 'reply'
             ? { type: 'message', label: b.title, text: b.text }
-            : { type: 'uri', label: b.title, uri: externalUrl(b.path) },
+            : { type: 'uri', label: b.title, uri: appLink(b.path) },
       };
     }),
   };
