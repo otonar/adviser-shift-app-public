@@ -34,14 +34,17 @@ export function detectCommand(text: string): LineCommand | null {
 }
 
 /**
- * アプリの URL に `openExternalBrowser=1` を付ける。
- * LINE のトークからリンクを開くと LINE 内ブラウザになり、普段のブラウザのログイン状態が
- * 使えない（毎回ログインし直しになる）。これを付けると端末の既定のブラウザで開く。
+ * トークに載せるアプリへのリンク。LINE の中のブラウザで開く（2026-09-25 に決定）。
+ *
+ * 以前は `openExternalBrowser=1` を付けて端末の既定のブラウザで開いていたが、
+ * iPhone のホーム画面に追加したアプリと Safari はログイン状態が別なので、多くの人にとって
+ * 結局ログインが要り、LINE から別アプリに移る手間だけが残っていた。
+ * LINE の中なら最初の1回ログインすれば以後はそのまま使え、閉じればトークに戻れる。
+ * 外部ブラウザに戻したくなったら、ここで `url.searchParams.set('openExternalBrowser', '1')` を
+ * 足し、scripts/setup-richmenu.mjs の appLink() も同じにして登録し直す。
  */
-export function externalUrl(appUrl: string, path: string): string {
-  const url = new URL(path, appUrl);
-  url.searchParams.set('openExternalBrowser', '1');
-  return url.toString();
+export function appLink(appUrl: string, path: string): string {
+  return new URL(path, appUrl).toString();
 }
 
 // 'YYYY-MM-DD' → '10/10(金)'
@@ -90,7 +93,7 @@ export function buildNextShiftsReply(roles: ReplyRole[], today: string, appUrl: 
     .sort((a, b) =>
       a.date !== b.date ? (a.date < b.date ? -1 : 1) : a.start_time < b.start_time ? -1 : 1
     );
-  const link = externalUrl(appUrl, '/dashboard/my-roles');
+  const link = appLink(appUrl, '/dashboard/my-roles');
 
   if (upcoming.length === 0) {
     return (
@@ -132,7 +135,7 @@ export function buildPendingSlotsReply(
   today: string,
   appUrl: string
 ): string {
-  const link = externalUrl(appUrl, '/dashboard/shifts');
+  const link = appLink(appUrl, '/dashboard/shifts');
 
   if (slots.length === 0) {
     return '【未提出の枠】\n今、希望を出す必要のある枠はありません。';
@@ -159,7 +162,7 @@ export function buildHelpReply(appUrl: string): string {
     '次の言葉を送ると返事をします。\n' +
     '・「直近のシフト」… 確定したこれからのシフトと役割\n' +
     '・「未提出の枠」… まだ希望を出していない枠と締切\n\n' +
-    `アプリはこちら:\n${externalUrl(appUrl, '/dashboard')}`
+    `アプリはこちら:\n${appLink(appUrl, '/dashboard')}`
   );
 }
 
@@ -172,7 +175,7 @@ export function buildAmbiguousReply(appUrl: string): string {
     'この LINE アカウントが、シフトアプリの複数のアカウントに連携されています。\n' +
     'どのアカウントのシフトをお知らせすればよいか分からないため、お答えできません。\n\n' +
     '使っていないほうのアカウントで「設定」→「LINE連携」を解除するか、管理者に相談してください:\n' +
-    externalUrl(appUrl, '/dashboard/settings')
+    appLink(appUrl, '/dashboard/settings')
   );
 }
 
@@ -184,6 +187,6 @@ export function buildUnlinkedReply(appUrl: string): string {
   return (
     'この LINE アカウントはシフトアプリと連携されていないため、シフトをお知らせできません。\n\n' +
     'アプリにログインし、「設定」→「LINE連携」から連携してください:\n' +
-    externalUrl(appUrl, '/dashboard/settings')
+    appLink(appUrl, '/dashboard/settings')
   );
 }
