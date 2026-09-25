@@ -13,6 +13,7 @@
     "test:shift": "node scripts/test-shift-logic.mjs",
     "test:line": "node scripts/test-line-reply.mjs",
     "icons": "node scripts/generate-icons.mjs",
+    "richmenu": "node scripts/setup-richmenu.mjs",
     "format": "prettier --write ."
   },
   "dependencies": {
