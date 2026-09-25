@@ -1,5 +1,5 @@
 import 'server-only';
-import { messagingApi } from '@line/bot-sdk';
+import { messagingApi, validateSignature } from '@line/bot-sdk';
 import { optionalEnv } from './env';
 
 // LINE Messaging API クライアント。
@@ -55,6 +55,47 @@ export async function sendMulticast(
       messages: [{ type: 'text', text: message }],
     });
     return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Webhook で受け取ったイベントへの返信（replyToken を使う）。成功で true、未設定/失敗で false。
+ * 返信はプッシュ送信と違い、月の送信数の上限に数えられない。
+ * replyToken は1回だけ・受信から短時間しか使えないので、受け取ったらすぐ呼ぶこと。
+ */
+export async function sendReplyMessage(
+  replyToken: string,
+  message: string
+): Promise<boolean> {
+  const client = getClient();
+  if (!client) return false;
+  try {
+    await client.replyMessage({
+      replyToken,
+      messages: [{ type: 'text', text: message }],
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Webhook のリクエストが本当に LINE から来たかを確かめる。
+ * 本文（受け取ったままの文字列）をチャネルシークレットで HMAC-SHA256 した値が
+ * `x-line-signature` ヘッダーと一致するかを見る。
+ * シークレット未設定・署名なし・不一致はすべて false（fail closed）。
+ */
+export function verifyLineSignature(
+  rawBody: string,
+  signature: string | null
+): boolean {
+  const secret = optionalEnv('LINE_CHANNEL_SECRET');
+  if (!secret || !signature) return false;
+  try {
+    return validateSignature(rawBody, secret, signature);
   } catch {
     return false;
   }
