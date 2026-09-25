@@ -3,6 +3,7 @@ import { sendPushMessage, isLineConfigured } from '@/lib/line';
 import { optionalEnv } from '@/lib/env';
 import { jsonError, jsonOk, withRoute } from '@/lib/http';
 import { todayJst } from '@/lib/datetime';
+import { SLOT_TYPE_LABEL, type SlotType } from '@/types';
 
 // シフト希望の提出リマインド（Vercel Cron から毎朝 JST 8:00 に実行）。
 // 提出期限が「今日(JST)」・受付中(open) のシフトについて、対象者のうち
@@ -42,11 +43,9 @@ function formatDateJa(date: string): string {
   }).format(d);
 }
 
-const SLOT_TYPE_LABEL: Record<string, string> = { day: '当日', training: '研修' };
-
 type DueSlot = {
   id: string;
-  slot_type: string;
+  slot_type: SlotType;
   date: string;
   start_time: string;
   end_time: string;

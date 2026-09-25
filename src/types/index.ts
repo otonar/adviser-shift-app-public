@@ -57,6 +57,11 @@ export type SurveyStatus = 'draft' | 'published';
 export type SurveyScope = 'all' | 'core';
 
 export type SlotType = 'day' | 'training';
+// 通知・LINE 返信で使う表示名。表記を1か所に集める。
+export const SLOT_TYPE_LABEL: Record<SlotType, string> = {
+  day: '当日',
+  training: '研修',
+};
 export type AssignmentStatus = 'open' | 'draft' | 'published';
 export type NotificationType =
   | 'shift_reminder'

@@ -9,6 +9,24 @@ import {
 
 // 全 API Route Handler はここで定義した zod スキーマでバリデーションする。
 
+// LINE Webhook の本文。使う項目だけを見る（LINE 側で項目が増えても落ちないよう、
+// 知らない項目は無視し、知らない種類のイベントは型を問わず受け流す）。
+// 署名検証を通ったあとに使うので、ここは「想定外の形で落ちない」ための確認。
+const lineWebhookEventSchema = z.object({
+  type: z.string(),
+  replyToken: z.string().max(200).optional(),
+  source: z
+    .object({ type: z.string(), userId: z.string().max(100).optional() })
+    .optional(),
+  message: z
+    .object({ type: z.string(), text: z.string().max(5000).optional() })
+    .optional(),
+});
+
+export const lineWebhookSchema = z.object({
+  events: z.array(lineWebhookEventSchema).max(100),
+});
+
 export const signupSchema = z.object({
   name: z.string().trim().min(2, '名前は2文字以上').max(20, '名前は20文字以内'),
   password: z.string().min(8, 'パスワードは8文字以上'),
