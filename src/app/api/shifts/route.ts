@@ -21,7 +21,10 @@ async function getHandler(req: Request) {
         .select('*')
         .order('date', { ascending: true });
       if (error) return jsonError('取得に失敗しました', 500, 'FETCH_FAILED');
-      return jsonOk({ slots: data ?? [] });
+      // 締切済みかどうかはサーバの時刻で判定して返す（一覧に出すため）
+      return jsonOk({
+        slots: (data ?? []).map((slot) => ({ ...slot, expired: isExpired(slot.deadline) })),
+      });
     }
   }
 
