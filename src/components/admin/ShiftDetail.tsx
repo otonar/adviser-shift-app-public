@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import type { SlotType } from '@/types';
 import { NO_ROLE } from '@/types';
 import { rolesForSlotType } from '@/lib/role-assignment';
+import { addDays, daysBetween, deadlineDateJst } from '@/lib/datetime';
 import TargetUserSelector, {
   type SelectableUser,
 } from './TargetUserSelector';
@@ -64,12 +65,13 @@ export default function ShiftDetail({ shiftId }: { shiftId: string }) {
   const [editTargets, setEditTargets] = useState(false);
   const [targetSel, setTargetSel] = useState<Set<string>>(new Set());
 
-  // 基本情報（日付・時間・タイトル・備考）の編集
+  // 基本情報（日付・時間・提出期限・タイトル・備考）の編集
   const [editInfo, setEditInfo] = useState(false);
   const [infoForm, setInfoForm] = useState({
     date: '',
     start_time: '',
     end_time: '',
+    deadline_date: '',
     title: '',
     note: '',
   });
@@ -212,12 +214,21 @@ export default function ShiftDetail({ shiftId }: { shiftId: string }) {
       setError('開始時刻は終了時刻より前にしてください');
       return;
     }
+    if (!infoForm.deadline_date) {
+      setError('提出期限を入力してください');
+      return;
+    }
+    if (infoForm.deadline_date > infoForm.date) {
+      setError('提出期限はシフトの日付より後にできません');
+      return;
+    }
     const title = infoForm.title.trim();
     if (
       await call(`/api/shifts/${shiftId}`, 'PATCH', {
         date: infoForm.date,
         start_time: infoForm.start_time,
         end_time: infoForm.end_time,
+        deadline_date: infoForm.deadline_date,
         // 変えたときだけ送る（title 列を追加する前の DB でも他の項目は保存できるように）
         ...(title !== (detail?.slot.title ?? '') ? { title: title || null } : {}),
         note: infoForm.note || null,
@@ -245,6 +256,7 @@ export default function ShiftDetail({ shiftId }: { shiftId: string }) {
     (t) => !assignedIds.has(t.id) && t.is_active
   );
   const inactiveTargets = targets.filter((t) => !t.is_active);
+  const deadlineDate = deadlineDateJst(slot.deadline);
 
   return (
     <div className="flex flex-col gap-6">
@@ -283,6 +295,7 @@ export default function ShiftDetail({ shiftId }: { shiftId: string }) {
                   date: slot.date,
                   start_time: slot.start_time.slice(0, 5),
                   end_time: slot.end_time.slice(0, 5),
+                  deadline_date: deadlineDate,
                   title: slot.title ?? '',
                   note: slot.note ?? '',
                 });
@@ -291,7 +304,7 @@ export default function ShiftDetail({ shiftId }: { shiftId: string }) {
             }}
             className="rounded border px-2 py-1 text-xs"
           >
-            {editInfo ? '閉じる' : '日付・時間・タイトル・備考を編集'}
+            {editInfo ? '閉じる' : '日付・時間・提出期限・タイトル・備考を編集'}
           </button>
         </div>
         {editInfo ? (
@@ -301,7 +314,21 @@ export default function ShiftDetail({ shiftId }: { shiftId: string }) {
               <input
                 type="date"
                 value={infoForm.date}
-                onChange={(e) => setInfoForm({ ...infoForm, date: e.target.value })}
+                onChange={(e) => {
+                  const date = e.target.value;
+                  // 日付を動かしたら、期限も同じ日数だけ動かす（「何日前」を保つ）
+                  const shift =
+                    date && infoForm.date && infoForm.deadline_date
+                      ? daysBetween(infoForm.date, date)
+                      : 0;
+                  setInfoForm({
+                    ...infoForm,
+                    date,
+                    deadline_date: shift
+                      ? addDays(infoForm.deadline_date, shift)
+                      : infoForm.deadline_date,
+                  });
+                }}
                 className="rounded border px-3 py-2"
               />
             </label>
@@ -321,6 +348,23 @@ export default function ShiftDetail({ shiftId }: { shiftId: string }) {
                 />
               </label>
             </div>
+            <label className="flex flex-col gap-1 text-sm">
+              提出期限（この日の 23:59 まで）
+              <input
+                type="date"
+                value={infoForm.deadline_date}
+                max={infoForm.date}
+                onChange={(e) =>
+                  setInfoForm({ ...infoForm, deadline_date: e.target.value })
+                }
+                className="rounded border px-3 py-2"
+              />
+              {infoForm.date && infoForm.deadline_date && (
+                <span className="text-xs text-gray-400">
+                  {deadlineGapLabel(infoForm.date, infoForm.deadline_date)}
+                </span>
+              )}
+            </label>
             <label className="flex flex-col gap-1 text-sm">
               タイトル（任意）
               <input
@@ -350,7 +394,7 @@ export default function ShiftDetail({ shiftId }: { shiftId: string }) {
               基本情報を保存
             </button>
             <p className="text-xs text-gray-400">
-              日付を変更すると提出期限（日付−14日 23:59 JST）も再計算されます。種別の変更はできません。
+              日付を変えると提出期限も同じ日数だけ一緒に動きます（そのあと期限だけ直せます）。種別の変更はできません。
             </p>
           </div>
         ) : (
@@ -358,6 +402,10 @@ export default function ShiftDetail({ shiftId }: { shiftId: string }) {
             {slot.title ? `${slot.title} / ` : ''}
             {slot.start_time.slice(0, 5)}〜{slot.end_time.slice(0, 5)}
             {slot.note ? ` / ${slot.note}` : ''}
+            <span className="block">
+              提出期限: {deadlineDate} 23:59 まで（
+              {deadlineGapLabel(slot.date, deadlineDate)}）
+            </span>
           </p>
         )}
       </section>
@@ -619,6 +667,13 @@ export default function ShiftDetail({ shiftId }: { shiftId: string }) {
       </div>
     </div>
   );
+}
+
+// 期限が枠の日付の何日前かを言葉にする。
+function deadlineGapLabel(date: string, deadlineDate: string): string {
+  const gap = daysBetween(deadlineDate, date);
+  if (gap === 0) return 'シフト当日';
+  return gap > 0 ? `シフトの${gap}日前` : `シフトの${-gap}日後`;
 }
 
 // 脱退した人が対象者や割り振りに残っていることがある（脱退しても行は消えない）。

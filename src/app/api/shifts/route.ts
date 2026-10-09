@@ -78,11 +78,20 @@ async function postHandler(req: Request) {
 
   const parsed = await parseBody(req, createShiftSchema);
   if (!parsed.ok) return parsed.response;
-  const { slot_type, date, start_time, end_time, title, note, target_user_ids } =
-    parsed.data;
+  const {
+    slot_type,
+    date,
+    start_time,
+    end_time,
+    title,
+    deadline_days_before,
+    note,
+    target_user_ids,
+  } = parsed.data;
 
   const supabase = getSupabaseAdmin();
-  const deadline = computeDeadline(date);
+  // 何日前かの指定が無ければ既定（14日前）
+  const deadline = computeDeadline(date, deadline_days_before);
 
   const { data: slot, error } = await supabase
     .from('shift_slots')

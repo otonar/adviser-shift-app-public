@@ -3,21 +3,73 @@
 
 const JST_OFFSET = '+09:00';
 
+// 提出期限の既定値（枠の日付の何日前か）。管理画面で枠ごとに変えられる。
+export const DEFAULT_DEADLINE_DAYS = 14;
+// 「何日前」に指定できる上限。
+export const MAX_DEADLINE_DAYS = 365;
+
 /**
- * シフト枠の提出期限を計算する。
- * deadline = (date の 14 日前) の 23:59:59 JST
- * @param date 'YYYY-MM-DD'
- * @returns ISO 8601 文字列（JST オフセット付き）
+ * 'YYYY-MM-DD' に日数を足す（負の数で引く）。
  */
-export function computeDeadline(date: string): string {
+export function addDays(date: string, days: number): string {
   const [y, m, d] = date.split('-').map(Number);
-  // UTC 基準で日付演算（DST のない JST なので単純な日数引き算で安全）
+  // UTC 基準で日付演算（DST のない JST なので単純な日数の足し引きで安全）
   const base = new Date(Date.UTC(y, m - 1, d));
-  base.setUTCDate(base.getUTCDate() - 14);
+  base.setUTCDate(base.getUTCDate() + days);
   const yy = base.getUTCFullYear();
   const mm = String(base.getUTCMonth() + 1).padStart(2, '0');
   const dd = String(base.getUTCDate()).padStart(2, '0');
-  return `${yy}-${mm}-${dd}T23:59:59${JST_OFFSET}`;
+  return `${yy}-${mm}-${dd}`;
+}
+
+/**
+ * 'YYYY-MM-DD' どうしの日数差（to − from）。
+ */
+export function daysBetween(from: string, to: string): number {
+  const ms = (s: string) => {
+    const [y, m, d] = s.split('-').map(Number);
+    return Date.UTC(y, m - 1, d);
+  };
+  return Math.round((ms(to) - ms(from)) / (24 * 60 * 60 * 1000));
+}
+
+/**
+ * 実在する日付か（'2026-02-31' のような形式だけ合っている値を弾く）。
+ */
+export function isRealDate(date: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(date) && addDays(date, 0) === date;
+}
+
+/**
+ * 期限日から提出期限を作る。期限は常にその日の 23:59:59 JST。
+ * @param deadlineDate 'YYYY-MM-DD'
+ * @returns ISO 8601 文字列（JST オフセット付き）
+ */
+export function deadlineFromDate(deadlineDate: string): string {
+  return `${deadlineDate}T23:59:59${JST_OFFSET}`;
+}
+
+/**
+ * シフト枠の提出期限を計算する。
+ * deadline = (date の daysBefore 日前) の 23:59:59 JST。既定は 14 日前。
+ * @param date 'YYYY-MM-DD'
+ * @returns ISO 8601 文字列（JST オフセット付き）
+ */
+export function computeDeadline(
+  date: string,
+  daysBefore: number = DEFAULT_DEADLINE_DAYS
+): string {
+  return deadlineFromDate(addDays(date, -daysBefore));
+}
+
+/**
+ * 提出期限（ISO 文字列）が JST で何日にあたるか 'YYYY-MM-DD'。
+ */
+export function deadlineDateJst(deadline: string): string {
+  // UTC 時刻に +9h して JST の暦日を取り出す
+  return new Date(new Date(deadline).getTime() + 9 * 60 * 60 * 1000)
+    .toISOString()
+    .slice(0, 10);
 }
 
 /**

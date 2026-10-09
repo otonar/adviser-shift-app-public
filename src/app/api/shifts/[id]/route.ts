@@ -1,7 +1,7 @@
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { authenticateAdmin } from '@/lib/middleware';
 import { updateShiftSchema } from '@/lib/validators';
-import { computeDeadline } from '@/lib/datetime';
+import { computeDeadline, deadlineFromDate } from '@/lib/datetime';
 import { jsonError, jsonOk, parseBody, verifyOrigin, forbiddenOrigin, withRoute, isUuid, notFound } from '@/lib/http';
 
 type Params = { params: Promise<{ id: string }> };
@@ -97,15 +97,33 @@ async function patchHandler(req: Request, { params }: Params) {
 
   const parsed = await parseBody(req, updateShiftSchema);
   if (!parsed.ok) return parsed.response;
-  const { date, start_time, end_time, title, note, role_requirements } = parsed.data;
+  const { date, start_time, end_time, title, deadline_date, note, role_requirements } =
+    parsed.data;
 
   const supabase = getSupabaseAdmin();
 
   // 枠情報の更新
   const slotUpdate: Record<string, unknown> = {};
-  if (date !== undefined) {
-    slotUpdate.date = date;
-    slotUpdate.deadline = computeDeadline(date);
+  if (date !== undefined) slotUpdate.date = date;
+  if (date !== undefined || deadline_date !== undefined) {
+    const { data: current, error: currentErr } = await supabase
+      .from('shift_slots')
+      .select('date')
+      .eq('id', slotId)
+      .maybeSingle();
+    if (currentErr) return jsonError('更新に失敗しました', 500, 'UPDATE_FAILED');
+    if (!current) return notFound('シフト枠が見つかりません');
+    const newDate = date ?? current.date;
+    if (deadline_date !== undefined) {
+      if (deadline_date > newDate) {
+        return jsonError('提出期限はシフトの日付より後にできません', 400, 'INVALID_DEADLINE');
+      }
+      slotUpdate.deadline = deadlineFromDate(deadline_date);
+    } else if (newDate !== current.date) {
+      // 期限の指定なしで日付だけ変わったら、既定（14日前）で決め直す。
+      // 日付が同じなら期限には触らない（手で動かした期限を保存のたびに戻さないため）。
+      slotUpdate.deadline = computeDeadline(newDate);
+    }
   }
   if (start_time !== undefined) slotUpdate.start_time = start_time;
   if (end_time !== undefined) slotUpdate.end_time = end_time;
