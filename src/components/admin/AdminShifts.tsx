@@ -7,7 +7,7 @@ import TargetUserSelector, {
   type SelectableUser,
 } from './TargetUserSelector';
 import TimeSelect from '../ui/TimeSelect';
-import { DEFAULT_DEADLINE_DAYS, addDays } from '@/lib/datetime';
+import { DEFAULT_DEADLINE_DAYS, addDays, deadlineDateJst } from '@/lib/datetime';
 
 type Slot = {
   id: string;
@@ -15,6 +15,8 @@ type Slot = {
   date: string;
   start_time: string;
   end_time: string;
+  deadline: string;
+  expired: boolean;
   assignment_status: 'open' | 'draft' | 'published';
   // title 列を追加する前の DB では返ってこないので省略可にしている
   title?: string | null;
@@ -309,6 +311,10 @@ export default function AdminShifts() {
                         {slot.note && <span className="text-gray-500">{slot.note}</span>}
                       </span>
                     )}
+                    <span className="block text-xs text-gray-500">
+                      提出期限 {deadlineDateJst(slot.deadline)}
+                      {slot.expired && '（締切済み）'}
+                    </span>
                   </span>
                   <span className={`shrink-0 rounded px-2 py-0.5 text-xs ${badge.cls}`}>
                     {badge.label}
