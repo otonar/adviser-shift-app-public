@@ -18,6 +18,8 @@ type Slot = {
   end_time: string;
   deadline: string;
   assignment_status: 'open' | 'draft' | 'published';
+  // title 列を追加する前の DB では返ってこないので省略可にしている
+  title?: string | null;
   note: string | null;
 };
 type Target = {
@@ -62,12 +64,13 @@ export default function ShiftDetail({ shiftId }: { shiftId: string }) {
   const [editTargets, setEditTargets] = useState(false);
   const [targetSel, setTargetSel] = useState<Set<string>>(new Set());
 
-  // 基本情報（日付・時間・備考）の編集
+  // 基本情報（日付・時間・タイトル・備考）の編集
   const [editInfo, setEditInfo] = useState(false);
   const [infoForm, setInfoForm] = useState({
     date: '',
     start_time: '',
     end_time: '',
+    title: '',
     note: '',
   });
 
@@ -209,11 +212,14 @@ export default function ShiftDetail({ shiftId }: { shiftId: string }) {
       setError('開始時刻は終了時刻より前にしてください');
       return;
     }
+    const title = infoForm.title.trim();
     if (
       await call(`/api/shifts/${shiftId}`, 'PATCH', {
         date: infoForm.date,
         start_time: infoForm.start_time,
         end_time: infoForm.end_time,
+        // 変えたときだけ送る（title 列を追加する前の DB でも他の項目は保存できるように）
+        ...(title !== (detail?.slot.title ?? '') ? { title: title || null } : {}),
         note: infoForm.note || null,
       })
     ) {
@@ -247,6 +253,7 @@ export default function ShiftDetail({ shiftId }: { shiftId: string }) {
         <div>
           <h1 className="text-xl font-bold">
             {slot.date}（{slot.slot_type === 'day' ? '当日' : '研修'}）
+            {slot.title ? ` ${slot.title}` : ''}
           </h1>
           <p className="text-sm text-gray-600">
             {slot.start_time.slice(0, 5)}〜{slot.end_time.slice(0, 5)}
@@ -276,6 +283,7 @@ export default function ShiftDetail({ shiftId }: { shiftId: string }) {
                   date: slot.date,
                   start_time: slot.start_time.slice(0, 5),
                   end_time: slot.end_time.slice(0, 5),
+                  title: slot.title ?? '',
                   note: slot.note ?? '',
                 });
               }
@@ -283,7 +291,7 @@ export default function ShiftDetail({ shiftId }: { shiftId: string }) {
             }}
             className="rounded border px-2 py-1 text-xs"
           >
-            {editInfo ? '閉じる' : '日付・時間・備考を編集'}
+            {editInfo ? '閉じる' : '日付・時間・タイトル・備考を編集'}
           </button>
         </div>
         {editInfo ? (
@@ -314,6 +322,17 @@ export default function ShiftDetail({ shiftId }: { shiftId: string }) {
               </label>
             </div>
             <label className="flex flex-col gap-1 text-sm">
+              タイトル（任意）
+              <input
+                type="text"
+                value={infoForm.title}
+                onChange={(e) => setInfoForm({ ...infoForm, title: e.target.value })}
+                maxLength={50}
+                placeholder={slot.slot_type === 'training' ? '例: 共済研修' : '例: 入学式'}
+                className="rounded border px-3 py-2"
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-sm">
               備考（任意）
               <input
                 type="text"
@@ -336,6 +355,7 @@ export default function ShiftDetail({ shiftId }: { shiftId: string }) {
           </div>
         ) : (
           <p className="text-sm text-gray-600">
+            {slot.title ? `${slot.title} / ` : ''}
             {slot.start_time.slice(0, 5)}〜{slot.end_time.slice(0, 5)}
             {slot.note ? ` / ${slot.note}` : ''}
           </p>

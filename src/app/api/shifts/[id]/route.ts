@@ -97,7 +97,7 @@ async function patchHandler(req: Request, { params }: Params) {
 
   const parsed = await parseBody(req, updateShiftSchema);
   if (!parsed.ok) return parsed.response;
-  const { date, start_time, end_time, note, role_requirements } = parsed.data;
+  const { date, start_time, end_time, title, note, role_requirements } = parsed.data;
 
   const supabase = getSupabaseAdmin();
 
@@ -109,6 +109,8 @@ async function patchHandler(req: Request, { params }: Params) {
   }
   if (start_time !== undefined) slotUpdate.start_time = start_time;
   if (end_time !== undefined) slotUpdate.end_time = end_time;
+  // 空文字は「タイトルなし」として NULL に揃える
+  if (title !== undefined) slotUpdate.title = title || null;
   if (note !== undefined) slotUpdate.note = note;
   if (Object.keys(slotUpdate).length > 0) {
     slotUpdate.updated_at = new Date().toISOString();

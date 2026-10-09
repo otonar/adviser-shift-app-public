@@ -21,7 +21,7 @@ async function postHandler(_req: Request, { params }: Params) {
 
   const { data: slot } = await supabase
     .from('shift_slots')
-    .select('date, start_time, end_time')
+    .select('date, start_time, end_time, title')
     .eq('id', slotId)
     .maybeSingle();
   if (!slot) return jsonError('シフト枠が見つかりません', 404, 'NOT_FOUND');
@@ -45,10 +45,13 @@ async function postHandler(_req: Request, { params }: Params) {
   const startHm = slot.start_time.slice(0, 5);
   const endHm = slot.end_time.slice(0, 5);
 
+  // タイトルがあれば「10/10 13:00〜16:00 共済研修」のように何の枠かも伝える
+  const when = `${slot.date} ${startHm}〜${endHm}${slot.title ? ` ${slot.title}` : ''}`;
+
   const buildMessage = (role: string) =>
     role === NO_ROLE
-      ? `シフト確定: ${slot.date} ${startHm}〜${endHm} 出勤です（役割の指定はありません）`
-      : `シフト確定: ${slot.date} ${startHm}〜${endHm} あなたの役割は「${role}」です`;
+      ? `シフト確定: ${when} 出勤です（役割の指定はありません）`
+      : `シフト確定: ${when} あなたの役割は「${role}」です`;
 
   // メッセージは役割ごとに異なるため、同一メッセージの連携済みユーザーをまとめて multicast する。
   const linked: { userId: string; lineUserId: string; message: string }[] = [];

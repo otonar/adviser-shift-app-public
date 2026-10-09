@@ -99,7 +99,7 @@ console.log('\n■ 直近のシフト（buildNextShiftsReply）');
   const roles = [
     { role: '受付', date: '2026-09-20', start_time: '09:00:00', end_time: '12:00:00', slot_type: 'day' }, // 過去
     { role: 'PC', date: '2026-10-10', start_time: '13:00:00', end_time: '16:00:00', slot_type: 'training' },
-    { role: '役割なし', date: '2026-10-03', start_time: '09:00:00', end_time: '12:00:00', slot_type: 'training' },
+    { role: '役割なし', date: '2026-10-03', start_time: '09:00:00', end_time: '12:00:00', slot_type: 'training', title: '共済研修' },
     { role: '共済', date: TODAY, start_time: '10:00:00', end_time: '15:00:00', slot_type: 'day' }, // 今日
   ];
   const text = buildNextShiftsReply(roles, TODAY, APP);
@@ -108,7 +108,8 @@ console.log('\n■ 直近のシフト（buildNextShiftsReply）');
   ok('今日の分は【今日】付きで先頭', lines[1].startsWith('・【今日】10/1(木) 10:00〜15:00（当日）'), lines[1]);
   ok('近い順（10/3 が 10/10 より先）', text.indexOf('10/3') < text.indexOf('10/10'), text);
   ok('役割なしは「役割の指定なし」と書く', text.includes('役割の指定なし') && !text.includes('役割: 役割なし'), text);
-  ok('研修の表示名', text.includes('10/10(土) 13:00〜16:00（研修）'), text);
+  ok('研修の表示名（タイトルなしは種別だけ）', text.includes('10/10(土) 13:00〜16:00（研修）\n'), text);
+  ok('タイトルがあれば種別の後ろに出す', text.includes('10/3(土) 09:00〜12:00（研修）共済研修\n'), text);
   ok('役割の一覧へのリンク', text.endsWith(`${APP}/dashboard/my-roles`), text);
   ok('3件以下なら「ほか」は出ない', !text.includes('ほか'), text);
 }
@@ -141,7 +142,7 @@ console.log('\n■ 未提出の枠（buildPendingSlotsReply）');
   // 締切は「日付の14日前 23:59:59 JST」＝ ISO では UTC の 14:59:59
   const slots = [
     { date: '2026-10-17', start_time: '09:00:00', end_time: '12:00:00', slot_type: 'day', deadline: '2026-10-03T14:59:59.000Z' },
-    { date: '2026-10-15', start_time: '09:00:00', end_time: '12:00:00', slot_type: 'training', deadline: '2026-10-01T14:59:59.000Z' },
+    { date: '2026-10-15', start_time: '09:00:00', end_time: '12:00:00', slot_type: 'training', title: '学び研修', deadline: '2026-10-01T14:59:59.000Z' },
     { date: '2026-10-16', start_time: '13:00:00', end_time: '17:00:00', slot_type: 'day', deadline: '2026-10-02T14:59:59.000Z' },
   ];
   const text = buildPendingSlotsReply(slots, TODAY, APP);
@@ -150,6 +151,7 @@ console.log('\n■ 未提出の枠（buildPendingSlotsReply）');
   ok('締切が今日なら「今日まで！」（JST の暦日で判定）', text.includes('締切 10/1(木)（今日まで！）'), text);
   ok('締切が明日なら「明日まで」', text.includes('締切 10/2(金)（明日まで）'), text);
   ok('それ以降は「あと N 日」', text.includes('締切 10/3(土)（あと2日）'), text);
+  ok('タイトルがあれば種別の後ろに出す', text.includes('10/15(木) 09:00〜12:00（研修）学び研修\n'), text);
   ok('提出画面へのリンク', text.endsWith(`${APP}/dashboard/shifts`), text);
 }
 

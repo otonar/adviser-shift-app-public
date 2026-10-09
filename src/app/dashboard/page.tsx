@@ -52,6 +52,7 @@ export default async function Dashboard() {
               <li key={s.id}>
                 {s.date}（{s.slot_type === 'day' ? '当日' : '研修'}）
                 {hm(s.start_time)}〜{hm(s.end_time)}
+                {s.title && <span className="ml-1 font-bold">{s.title}</span>}
                 <span className="ml-1 text-xs">
                   期限 {formatDeadlineJst(s.deadline)}
                 </span>
@@ -84,6 +85,7 @@ export default async function Dashboard() {
             <p className="text-lg font-bold">
               {next.date}（{next.slot_type === 'day' ? '当日' : '研修'}）
             </p>
+            {next.title && <p className="font-bold">{next.title}</p>}
             <p className="text-sm text-gray-600">
               {hm(next.start_time)}〜{hm(next.end_time)}
             </p>

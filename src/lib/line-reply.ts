@@ -72,6 +72,11 @@ function timeRange(start: string, end: string): string {
   return `${start.slice(0, 5)}〜${end.slice(0, 5)}`;
 }
 
+// 枠の種別とタイトル。'（研修）共済研修' / タイトルが無ければ '（研修）'
+function slotLabel(slotType: SlotType, title?: string | null): string {
+  return `（${SLOT_TYPE_LABEL[slotType]}）${title ?? ''}`;
+}
+
 // 一覧に出す最大件数。多いとトークが縦に長くなるので、残りはアプリへ誘導する。
 const MAX_ITEMS = 3;
 
@@ -81,6 +86,7 @@ export type ReplyRole = {
   start_time: string;
   end_time: string;
   slot_type: SlotType;
+  title?: string | null;
 };
 
 /**
@@ -107,7 +113,7 @@ export function buildNextShiftsReply(roles: ReplyRole[], today: string, appUrl: 
   const lines = upcoming.slice(0, MAX_ITEMS).map((r) => {
     const role = r.role === NO_ROLE ? '役割の指定なし' : `役割: ${r.role}`;
     const label = r.date === today ? '【今日】' : '';
-    return `・${label}${formatDate(r.date)} ${timeRange(r.start_time, r.end_time)}（${SLOT_TYPE_LABEL[r.slot_type]}）\n　${role}`;
+    return `・${label}${formatDate(r.date)} ${timeRange(r.start_time, r.end_time)}${slotLabel(r.slot_type, r.title)}\n　${role}`;
   });
   const rest = upcoming.length - MAX_ITEMS;
   return (
@@ -123,6 +129,7 @@ export type ReplyPendingSlot = {
   start_time: string;
   end_time: string;
   slot_type: SlotType;
+  title?: string | null;
   deadline: string;
 };
 
@@ -146,7 +153,7 @@ export function buildPendingSlotsReply(
     const due = jstDate(s.deadline);
     const left = daysBetween(today, due);
     const when = left <= 0 ? '今日まで！' : left === 1 ? '明日まで' : `あと${left}日`;
-    return `・${formatDate(s.date)} ${timeRange(s.start_time, s.end_time)}（${SLOT_TYPE_LABEL[s.slot_type]}）\n　締切 ${formatDate(due)}（${when}）`;
+    return `・${formatDate(s.date)} ${timeRange(s.start_time, s.end_time)}${slotLabel(s.slot_type, s.title)}\n　締切 ${formatDate(due)}（${when}）`;
   });
   const rest = sorted.length - MAX_ITEMS;
   return (

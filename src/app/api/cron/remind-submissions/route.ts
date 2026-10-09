@@ -49,6 +49,7 @@ type DueSlot = {
   date: string;
   start_time: string;
   end_time: string;
+  title: string | null;
 };
 
 async function handler(req: Request) {
@@ -66,7 +67,7 @@ async function handler(req: Request) {
   // 1. 期限が今日(JST)・受付中のシフト枠
   const { data: slotsRaw, error: slotsErr } = await supabase
     .from('shift_slots')
-    .select('id, slot_type, date, start_time, end_time')
+    .select('id, slot_type, date, start_time, end_time, title')
     .eq('assignment_status', 'open')
     .gte('deadline', start)
     .lt('deadline', end);
@@ -159,7 +160,7 @@ async function handler(req: Request) {
       )
       .map(
         (s) =>
-          `・${formatDateJa(s.date)} ${s.start_time.slice(0, 5)}〜${s.end_time.slice(0, 5)}（${SLOT_TYPE_LABEL[s.slot_type] ?? s.slot_type}）`
+          `・${formatDateJa(s.date)} ${s.start_time.slice(0, 5)}〜${s.end_time.slice(0, 5)}（${SLOT_TYPE_LABEL[s.slot_type] ?? s.slot_type}）${s.title ?? ''}`
       );
     if (lines.length === 0) continue;
 

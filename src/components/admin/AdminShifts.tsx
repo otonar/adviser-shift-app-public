@@ -15,6 +15,8 @@ type Slot = {
   start_time: string;
   end_time: string;
   assignment_status: 'open' | 'draft' | 'published';
+  // title 列を追加する前の DB では返ってこないので省略可にしている
+  title?: string | null;
   note: string | null;
 };
 
@@ -35,6 +37,7 @@ export default function AdminShifts() {
   const [dateInput, setDateInput] = useState('');
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
+  const [title, setTitle] = useState('');
   const [note, setNote] = useState('');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [creating, setCreating] = useState(false);
@@ -84,6 +87,7 @@ export default function AdminShifts() {
           dates,
           start_time: startTime,
           end_time: endTime,
+          title: title.trim() || undefined,
           note: note || undefined,
           target_user_ids: Array.from(selected),
         }),
@@ -99,6 +103,7 @@ export default function AdminShifts() {
       setDateInput('');
       setStartTime('');
       setEndTime('');
+      setTitle('');
       setNote('');
       setSelected(new Set());
       await load();
@@ -177,7 +182,7 @@ export default function AdminShifts() {
               </div>
             )}
             <p className="text-xs text-gray-400">
-              日付を選んで「追加」。複数追加すると同じ時間・対象・備考でまとめて掲示します。
+              日付を選んで「追加」。複数追加すると同じ時間・対象・タイトル・備考でまとめて掲示します。
             </p>
           </div>
           <div className="flex gap-2">
@@ -190,6 +195,20 @@ export default function AdminShifts() {
               <TimeSelect value={endTime} onChange={setEndTime} required />
             </label>
           </div>
+          <label className="flex flex-col gap-1 text-sm">
+            タイトル（任意）
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              maxLength={50}
+              placeholder={slotType === 'training' ? '例: 共済研修' : '例: 入学式'}
+              className="rounded border px-3 py-2"
+            />
+            <span className="text-xs text-gray-400">
+              一覧やスタッフの提出画面に出ます。何の枠か分かる短い名前を。
+            </span>
+          </label>
           <label className="flex flex-col gap-1 text-sm">
             備考（任意）
             <input
@@ -238,16 +257,24 @@ export default function AdminShifts() {
               <li key={slot.id}>
                 <Link
                   href={`/admin/shifts/${slot.id}`}
-                  className="flex items-center justify-between rounded border bg-white p-3 hover:bg-gray-50"
+                  className="flex items-center justify-between gap-2 rounded border bg-white p-3 hover:bg-gray-50"
                 >
-                  <span>
+                  <span className="min-w-0">
                     <span className="font-bold">{slot.date}</span>{' '}
                     <span className="text-sm text-gray-600">
                       {slot.start_time.slice(0, 5)}〜{slot.end_time.slice(0, 5)}（
                       {slot.slot_type === 'day' ? '当日' : '研修'}）
                     </span>
+                    {/* 何の枠か見分けるための行。タイトルが無い枠は備考で代用する */}
+                    {(slot.title || slot.note) && (
+                      <span className="block truncate text-sm">
+                        {slot.title && <span className="font-bold">{slot.title}</span>}
+                        {slot.title && slot.note && ' '}
+                        {slot.note && <span className="text-gray-500">{slot.note}</span>}
+                      </span>
+                    )}
                   </span>
-                  <span className={`rounded px-2 py-0.5 text-xs ${badge.cls}`}>
+                  <span className={`shrink-0 rounded px-2 py-0.5 text-xs ${badge.cls}`}>
                     {badge.label}
                   </span>
                 </Link>

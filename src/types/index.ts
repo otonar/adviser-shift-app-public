@@ -95,6 +95,7 @@ export interface ShiftSlot {
   end_time: string; // HH:MM:SS
   deadline: string; // ISO timestamp
   assignment_status: AssignmentStatus;
+  title: string | null; // 一覧で見分けるための短い名前（例: 共済研修）
   note: string | null;
   created_at: string;
   updated_at: string;

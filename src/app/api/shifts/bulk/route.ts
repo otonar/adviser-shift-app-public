@@ -6,7 +6,7 @@ import { computeDeadline } from '@/lib/datetime';
 import { jsonError, jsonOk, parseBody, verifyOrigin, forbiddenOrigin, withRoute } from '@/lib/http';
 
 // POST: 複数日のシフト枠をまとめて作成（管理者）。
-// slot_type・時間・備考・対象者は共通、日付だけ複数。各枠に役割（初期0）を初期化。
+// slot_type・時間・タイトル・備考・対象者は共通、日付だけ複数。各枠に役割（初期0）を初期化。
 async function postHandler(req: Request) {
   if (!(await verifyOrigin())) return forbiddenOrigin();
   const admin = await authenticateAdmin();
@@ -14,7 +14,7 @@ async function postHandler(req: Request) {
 
   const parsed = await parseBody(req, createShiftsBulkSchema);
   if (!parsed.ok) return parsed.response;
-  const { slot_type, dates, start_time, end_time, note, target_user_ids } =
+  const { slot_type, dates, start_time, end_time, title, note, target_user_ids } =
     parsed.data;
 
   const supabase = getSupabaseAdmin();
@@ -28,6 +28,8 @@ async function postHandler(req: Request) {
     end_time,
     deadline: computeDeadline(date),
     note: note ?? null,
+    // 未入力なら列ごと送らない（title 列を追加する前の DB でも作成できるように）
+    ...(title ? { title } : {}),
   }));
   const { data: createdSlots, error } = await supabase
     .from('shift_slots')
