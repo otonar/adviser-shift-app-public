@@ -2,7 +2,7 @@ import { getSupabaseAdmin } from '@/lib/supabase';
 import { authenticateUser, authenticateAdmin } from '@/lib/middleware';
 import { createShiftSchema } from '@/lib/validators';
 import { rolesForSlotType } from '@/lib/role-assignment';
-import { computeDeadline, isExpired, compareSlotsUpcomingFirst } from '@/lib/datetime';
+import { computeDeadline, deadlineFromDate, isExpired, compareSlotsUpcomingFirst } from '@/lib/datetime';
 import { jsonError, jsonOk, parseBody, verifyOrigin, forbiddenOrigin, withRoute } from '@/lib/http';
 
 // GET: 一覧。管理者は全枠、一般ユーザーは自分が対象の枠＋自分の提出状況を返す。
@@ -84,14 +84,17 @@ async function postHandler(req: Request) {
     start_time,
     end_time,
     title,
+    deadline_date,
     deadline_days_before,
     note,
     target_user_ids,
   } = parsed.data;
 
   const supabase = getSupabaseAdmin();
-  // 何日前かの指定が無ければ既定（14日前）
-  const deadline = computeDeadline(date, deadline_days_before);
+  // 期限の日付が指定されていればその日、無ければ「何日前」（既定は14日前）で決める
+  const deadline = deadline_date
+    ? deadlineFromDate(deadline_date)
+    : computeDeadline(date, deadline_days_before);
 
   const { data: slot, error } = await supabase
     .from('shift_slots')
