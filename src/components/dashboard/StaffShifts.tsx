@@ -10,6 +10,8 @@ type Slot = {
   start_time: string;
   end_time: string;
   deadline: string;
+  // title 列を追加する前の DB では返ってこないので省略可にしている
+  title?: string | null;
   note: string | null;
   expired: boolean;
   submission: { available: boolean; note: string | null } | null;
@@ -22,6 +24,7 @@ export type MyRole = {
   start_time: string;
   end_time: string;
   slot_type: 'day' | 'training';
+  title: string | null;
 };
 
 function hm(t: string) {
@@ -69,6 +72,7 @@ function ShiftCard({ slot, onSaved }: { slot: Slot; onSaved: () => void }) {
           <p className="font-bold">
             {slot.date}（{slot.slot_type === 'day' ? '当日' : '研修'}）
           </p>
+          {slot.title && <p className="font-bold">{slot.title}</p>}
           <p className="text-sm text-gray-600">
             {hm(slot.start_time)}〜{hm(slot.end_time)}
           </p>
@@ -235,6 +239,7 @@ function BulkSubmit({ slots, onSaved }: { slots: Slot[]; onSaved: () => void }) 
                 <span className="font-bold">{slot.date}</span>（
                 {slot.slot_type === 'day' ? '当日' : '研修'}）{' '}
                 <span className="text-gray-600">{hmRange(slot)}</span>
+                {slot.title && <span className="ml-1">{slot.title}</span>}
                 {choice === null && (
                   <span className="ml-1 text-xs text-gray-400">（未回答）</span>
                 )}
@@ -300,6 +305,7 @@ function MyRoles({ roles }: { roles: MyRole[] }) {
           <p className="font-bold">
             {r.date}（{r.slot_type === 'day' ? '当日' : '研修'}）
           </p>
+          {r.title && <p className="font-bold">{r.title}</p>}
           <p className="text-sm text-gray-600">
             {hm(r.start_time)}〜{hm(r.end_time)}
           </p>

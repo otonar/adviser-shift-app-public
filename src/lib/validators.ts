@@ -50,6 +50,8 @@ export type AdminLoginInput = z.infer<typeof adminLoginSchema>;
 
 const dateStr = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, '日付の形式が不正です');
 const timeStr = z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/, '時刻の形式が不正です');
+// 枠のタイトル。一覧に1行で出すので短く制限する。
+const slotTitle = z.string().trim().max(50, 'タイトルは50文字以内にしてください');
 
 export const createShiftSchema = z
   .object({
@@ -57,6 +59,7 @@ export const createShiftSchema = z
     date: dateStr,
     start_time: timeStr,
     end_time: timeStr,
+    title: slotTitle.optional(),
     note: z.string().max(500).optional(),
     target_user_ids: z.array(z.string().uuid()).default([]),
   })
@@ -71,6 +74,7 @@ export const updateShiftSchema = z
     date: dateStr.optional(),
     start_time: timeStr.optional(),
     end_time: timeStr.optional(),
+    title: slotTitle.nullable().optional(),
     note: z.string().max(500).nullable().optional(),
     role_requirements: z
       .array(
@@ -94,6 +98,7 @@ export const createShiftsBulkSchema = z
     dates: z.array(dateStr).min(1, '日付を1つ以上選んでください').max(60),
     start_time: timeStr,
     end_time: timeStr,
+    title: slotTitle.optional(),
     note: z.string().max(500).optional(),
     target_user_ids: z.array(z.string().uuid()).default([]),
   })

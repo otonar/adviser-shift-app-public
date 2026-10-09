@@ -78,7 +78,7 @@ async function postHandler(req: Request) {
 
   const parsed = await parseBody(req, createShiftSchema);
   if (!parsed.ok) return parsed.response;
-  const { slot_type, date, start_time, end_time, note, target_user_ids } =
+  const { slot_type, date, start_time, end_time, title, note, target_user_ids } =
     parsed.data;
 
   const supabase = getSupabaseAdmin();
@@ -86,7 +86,16 @@ async function postHandler(req: Request) {
 
   const { data: slot, error } = await supabase
     .from('shift_slots')
-    .insert({ slot_type, date, start_time, end_time, deadline, note: note ?? null })
+    .insert({
+      slot_type,
+      date,
+      start_time,
+      end_time,
+      deadline,
+      note: note ?? null,
+      // 未入力なら列ごと送らない（title 列を追加する前の DB でも作成できるように）
+      ...(title ? { title } : {}),
+    })
     .select('*')
     .single();
   if (error || !slot) {

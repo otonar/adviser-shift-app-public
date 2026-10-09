@@ -16,10 +16,12 @@ export type PublishedRole = {
   start_time: string;
   end_time: string;
   slot_type: 'day' | 'training';
+  title: string | null;
 };
 
 type JoinedSlot = {
   id?: string;
+  title?: string | null;
   date: string;
   start_time: string;
   end_time: string;
@@ -43,7 +45,7 @@ export async function fetchMyPublishedRoles(userId: string): Promise<PublishedRo
   const { data } = await supabase
     .from('shift_assignments')
     .select(
-      'role, shift_slots(date, start_time, end_time, slot_type, assignment_status)'
+      'role, shift_slots(date, start_time, end_time, slot_type, title, assignment_status)'
     )
     .eq('user_id', userId);
 
@@ -57,6 +59,7 @@ export async function fetchMyPublishedRoles(userId: string): Promise<PublishedRo
         start_time: slot.start_time,
         end_time: slot.end_time,
         slot_type: slot.slot_type,
+        title: slot.title ?? null,
       };
     })
     .filter((r): r is PublishedRole => r !== null)
@@ -69,6 +72,7 @@ export type PendingSlot = {
   start_time: string;
   end_time: string;
   slot_type: 'day' | 'training';
+  title: string | null;
   deadline: string;
 };
 
@@ -88,7 +92,7 @@ export async function fetchMyPendingSlots(userId: string): Promise<PendingSlot[]
   const [{ data: slots }, { data: subs }] = await Promise.all([
     supabase
       .from('shift_slots')
-      .select('id, date, start_time, end_time, slot_type, deadline')
+      .select('id, date, start_time, end_time, slot_type, title, deadline')
       .in('id', slotIds),
     supabase
       .from('shift_submissions')
@@ -107,6 +111,7 @@ export async function fetchMyPendingSlots(userId: string): Promise<PendingSlot[]
       start_time: s.start_time,
       end_time: s.end_time,
       slot_type: s.slot_type,
+      title: s.title ?? null,
       deadline: s.deadline,
     }));
 }
