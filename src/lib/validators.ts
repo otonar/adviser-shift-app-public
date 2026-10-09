@@ -53,7 +53,11 @@ const dateStr = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, '日付の形式が不�
 const timeStr = z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/, '時刻の形式が不正です');
 // 枠のタイトル。一覧に1行で出すので短く制限する。
 const slotTitle = z.string().trim().max(50, 'タイトルは50文字以内にしてください');
-// 提出期限を「枠の日付の何日前」にするか。未指定なら既定（14日前）。
+// 提出期限の日付（その日の 23:59:59 JST まで）。
+const deadlineDate = dateStr.refine(isRealDate, '提出期限の日付が不正です');
+const DEADLINE_AFTER_DATE = '提出期限はシフトの日付より後にできません';
+// 提出期限を「枠の日付の何日前」にするか。画面は deadline_date を送る（こちらは日付の指定が無いとき用）。
+// どちらも無ければ既定（14日前）。
 const deadlineDaysBefore = z
   .number()
   .int('提出期限の日数は整数で入力してください')
@@ -67,6 +71,7 @@ export const createShiftSchema = z
     start_time: timeStr,
     end_time: timeStr,
     title: slotTitle.optional(),
+    deadline_date: deadlineDate.optional(),
     deadline_days_before: deadlineDaysBefore.optional(),
     note: z.string().max(500).optional(),
     target_user_ids: z.array(z.string().uuid()).default([]),
@@ -74,6 +79,10 @@ export const createShiftSchema = z
   .refine((v) => v.start_time < v.end_time, {
     message: '開始時刻は終了時刻より前にしてください',
     path: ['end_time'],
+  })
+  .refine((v) => !v.deadline_date || v.deadline_date <= v.date, {
+    message: DEADLINE_AFTER_DATE,
+    path: ['deadline_date'],
   });
 export type CreateShiftInput = z.infer<typeof createShiftSchema>;
 
@@ -83,8 +92,8 @@ export const updateShiftSchema = z
     start_time: timeStr.optional(),
     end_time: timeStr.optional(),
     title: slotTitle.nullable().optional(),
-    // 提出期限の日付（その日の 23:59:59 JST まで）。枠の日付との前後はハンドラで確かめる。
-    deadline_date: dateStr.refine(isRealDate, '提出期限の日付が不正です').optional(),
+    // 枠の日付との前後はハンドラで確かめる（日付を送らない更新では今の日付と比べるため）。
+    deadline_date: deadlineDate.optional(),
     note: z.string().max(500).nullable().optional(),
     role_requirements: z
       .array(
@@ -109,6 +118,7 @@ export const createShiftsBulkSchema = z
     start_time: timeStr,
     end_time: timeStr,
     title: slotTitle.optional(),
+    deadline_date: deadlineDate.optional(),
     deadline_days_before: deadlineDaysBefore.optional(),
     note: z.string().max(500).optional(),
     target_user_ids: z.array(z.string().uuid()).default([]),
@@ -116,6 +126,11 @@ export const createShiftsBulkSchema = z
   .refine((v) => v.start_time < v.end_time, {
     message: '開始時刻は終了時刻より前にしてください',
     path: ['end_time'],
+  })
+  // 期限は全枠で共通なので、いちばん早い日付より後にはできない
+  .refine((v) => !v.deadline_date || v.dates.every((d) => v.deadline_date! <= d), {
+    message: DEADLINE_AFTER_DATE,
+    path: ['deadline_date'],
   });
 export type CreateShiftsBulkInput = z.infer<typeof createShiftsBulkSchema>;
 

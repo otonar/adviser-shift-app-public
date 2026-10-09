@@ -7,7 +7,7 @@ import TargetUserSelector, {
   type SelectableUser,
 } from './TargetUserSelector';
 import TimeSelect from '../ui/TimeSelect';
-import { DEFAULT_DEADLINE_DAYS, MAX_DEADLINE_DAYS, addDays } from '@/lib/datetime';
+import { DEFAULT_DEADLINE_DAYS, addDays } from '@/lib/datetime';
 
 type Slot = {
   id: string;
@@ -39,7 +39,8 @@ export default function AdminShifts() {
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
   const [title, setTitle] = useState('');
-  const [deadlineDays, setDeadlineDays] = useState(DEFAULT_DEADLINE_DAYS);
+  // 提出期限。手で選ぶまでは空（＝送らない）で、サーバが各枠の日付の14日前にする。
+  const [deadlineInput, setDeadlineInput] = useState('');
   const [note, setNote] = useState('');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [creating, setCreating] = useState(false);
@@ -54,6 +55,11 @@ export default function AdminShifts() {
   function removeDate(d: string) {
     setDates(dates.filter((x) => x !== d));
   }
+  // 欄に見せる値。選んでいなくても日付が1つなら既定の日を見せる
+  // （複数のときは枠ごとに違う日になるので空のまま）。
+  const deadlineShown =
+    deadlineInput ||
+    (dates.length === 1 ? addDays(dates[0], -DEFAULT_DEADLINE_DAYS) : '');
 
   const load = useCallback(async () => {
     const [sRes, uRes] = await Promise.all([
@@ -79,6 +85,11 @@ export default function AdminShifts() {
       setError('日付を1つ以上追加してください');
       return;
     }
+    // dates は昇順なので先頭がいちばん早い日付
+    if (deadlineInput && deadlineInput > dates[0]) {
+      setError(`提出期限はいちばん早い日付（${dates[0]}）より後にできません`);
+      return;
+    }
     setCreating(true);
     try {
       const res = await fetch('/api/shifts/bulk', {
@@ -90,7 +101,7 @@ export default function AdminShifts() {
           start_time: startTime,
           end_time: endTime,
           title: title.trim() || undefined,
-          deadline_days_before: deadlineDays,
+          deadline_date: deadlineInput || undefined,
           note: note || undefined,
           target_user_ids: Array.from(selected),
         }),
@@ -107,7 +118,7 @@ export default function AdminShifts() {
       setStartTime('');
       setEndTime('');
       setTitle('');
-      setDeadlineDays(DEFAULT_DEADLINE_DAYS);
+      setDeadlineInput('');
       setNote('');
       setSelected(new Set());
       await load();
@@ -186,7 +197,7 @@ export default function AdminShifts() {
               </div>
             )}
             <p className="text-xs text-gray-400">
-              日付を選んで「追加」。複数追加すると同じ時間・対象・期限の日数・タイトル・備考でまとめて掲示します。
+              日付を選んで「追加」。複数追加すると同じ時間・対象・提出期限・タイトル・備考でまとめて掲示します。
             </p>
           </div>
           <div className="flex gap-2">
@@ -200,26 +211,24 @@ export default function AdminShifts() {
             </label>
           </div>
           <label className="flex flex-col gap-1 text-sm">
-            提出期限
-            <span className="flex items-center gap-1">
-              日付の
-              <input
-                type="number"
-                min={0}
-                max={MAX_DEADLINE_DAYS}
-                step={1}
-                value={deadlineDays}
-                onChange={(e) => setDeadlineDays(Number(e.target.value))}
-                required
-                className="w-20 rounded border px-2 py-2"
-              />
-              日前の 23:59 まで
-            </span>
+            提出期限（この日の 23:59 まで）
+            <input
+              type="date"
+              value={deadlineShown}
+              max={dates[0]}
+              onChange={(e) => setDeadlineInput(e.target.value)}
+              disabled={dates.length === 0}
+              className="rounded border px-3 py-2 disabled:bg-gray-50"
+            />
             <span className="text-xs text-gray-400">
-              {dates.length > 0 && Number.isInteger(deadlineDays) && deadlineDays >= 0
-                ? `${dates[0]} の枠は ${addDays(dates[0], -deadlineDays)} まで。`
-                : ''}
-              掲示したあとも、枠を開いて日付で直せます。
+              {dates.length === 0
+                ? '先に日付を追加してください。'
+                : deadlineInput
+                  ? dates.length > 1
+                    ? 'どの枠もこの期限になります。'
+                    : ''
+                  : `選ばなければ${dates.length > 1 ? 'それぞれの' : ''}日付の${DEFAULT_DEADLINE_DAYS}日前です。`}
+              掲示したあとも、枠を開いて直せます。
             </span>
           </label>
           <label className="flex flex-col gap-1 text-sm">
