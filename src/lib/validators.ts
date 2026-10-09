@@ -6,6 +6,7 @@ import {
   SUGGESTION_TYPES,
   SURVEY_ANSWER_TYPES,
 } from '@/types';
+import { MAX_DEADLINE_DAYS, isRealDate } from '@/lib/datetime';
 
 // 全 API Route Handler はここで定義した zod スキーマでバリデーションする。
 
@@ -52,6 +53,12 @@ const dateStr = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, '日付の形式が不�
 const timeStr = z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/, '時刻の形式が不正です');
 // 枠のタイトル。一覧に1行で出すので短く制限する。
 const slotTitle = z.string().trim().max(50, 'タイトルは50文字以内にしてください');
+// 提出期限を「枠の日付の何日前」にするか。未指定なら既定（14日前）。
+const deadlineDaysBefore = z
+  .number()
+  .int('提出期限の日数は整数で入力してください')
+  .min(0, '提出期限の日数は0以上にしてください')
+  .max(MAX_DEADLINE_DAYS, `提出期限の日数は${MAX_DEADLINE_DAYS}以下にしてください`);
 
 export const createShiftSchema = z
   .object({
@@ -60,6 +67,7 @@ export const createShiftSchema = z
     start_time: timeStr,
     end_time: timeStr,
     title: slotTitle.optional(),
+    deadline_days_before: deadlineDaysBefore.optional(),
     note: z.string().max(500).optional(),
     target_user_ids: z.array(z.string().uuid()).default([]),
   })
@@ -75,6 +83,8 @@ export const updateShiftSchema = z
     start_time: timeStr.optional(),
     end_time: timeStr.optional(),
     title: slotTitle.nullable().optional(),
+    // 提出期限の日付（その日の 23:59:59 JST まで）。枠の日付との前後はハンドラで確かめる。
+    deadline_date: dateStr.refine(isRealDate, '提出期限の日付が不正です').optional(),
     note: z.string().max(500).nullable().optional(),
     role_requirements: z
       .array(
@@ -99,6 +109,7 @@ export const createShiftsBulkSchema = z
     start_time: timeStr,
     end_time: timeStr,
     title: slotTitle.optional(),
+    deadline_days_before: deadlineDaysBefore.optional(),
     note: z.string().max(500).optional(),
     target_user_ids: z.array(z.string().uuid()).default([]),
   })

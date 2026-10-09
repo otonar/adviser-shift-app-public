@@ -39,6 +39,11 @@ async function load(entry) {
 const { assignRoles, rolesForSlotType } = await load('src/lib/role-assignment.ts');
 const {
   computeDeadline,
+  deadlineFromDate,
+  deadlineDateJst,
+  addDays,
+  daysBetween,
+  isRealDate,
   isExpired,
   compareSlotsUpcomingFirst,
   formatStockFreshness,
@@ -223,6 +228,17 @@ check('期限 = 日付の14日前 23:59:59 JST', computeDeadline('2026-04-03'), 
 check('月をまたぐ', computeDeadline('2026-03-01'), '2026-02-15T23:59:59+09:00');
 check('年をまたぐ', computeDeadline('2026-01-05'), '2025-12-22T23:59:59+09:00');
 check('うるう年の2月を含む', computeDeadline('2028-03-01'), '2028-02-16T23:59:59+09:00');
+
+// 期限は管理画面で動かせる（既定は14日前のまま）
+check('何日前かを指定できる（7日前）', computeDeadline('2026-04-03', 7), '2026-03-27T23:59:59+09:00');
+check('0日前 = シフト当日の 23:59:59', computeDeadline('2026-04-03', 0), '2026-04-03T23:59:59+09:00');
+check('期限日から期限を作る', deadlineFromDate('2026-10-02'), '2026-10-02T23:59:59+09:00');
+check('期限の JST の日付（+09:00 表記）', deadlineDateJst('2026-10-02T23:59:59+09:00'), '2026-10-02');
+check('期限の JST の日付（DB が返す UTC 表記でも同じ日）', deadlineDateJst('2026-10-02T14:59:59+00:00'), '2026-10-02');
+check('日付を足す（月またぎ）', addDays('2026-01-30', 3), '2026-02-02');
+check('日数差', daysBetween('2026-10-02', '2026-10-10'), 8);
+check('日数差（逆向きは負）', daysBetween('2026-10-10', '2026-10-02'), -8);
+check('実在しない日付は弾く', [isRealDate('2026-02-31'), isRealDate('2026-13-01'), isRealDate('2028-02-29')], [false, false, true]);
 
 check('過去の期限は期限切れ', isExpired('2020-01-01T23:59:59+09:00'), true);
 check('未来の期限は期限切れでない', isExpired('2999-01-01T23:59:59+09:00'), false);

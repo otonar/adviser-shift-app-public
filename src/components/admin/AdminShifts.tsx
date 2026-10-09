@@ -7,6 +7,7 @@ import TargetUserSelector, {
   type SelectableUser,
 } from './TargetUserSelector';
 import TimeSelect from '../ui/TimeSelect';
+import { DEFAULT_DEADLINE_DAYS, MAX_DEADLINE_DAYS, addDays } from '@/lib/datetime';
 
 type Slot = {
   id: string;
@@ -38,6 +39,7 @@ export default function AdminShifts() {
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
   const [title, setTitle] = useState('');
+  const [deadlineDays, setDeadlineDays] = useState(DEFAULT_DEADLINE_DAYS);
   const [note, setNote] = useState('');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [creating, setCreating] = useState(false);
@@ -88,6 +90,7 @@ export default function AdminShifts() {
           start_time: startTime,
           end_time: endTime,
           title: title.trim() || undefined,
+          deadline_days_before: deadlineDays,
           note: note || undefined,
           target_user_ids: Array.from(selected),
         }),
@@ -104,6 +107,7 @@ export default function AdminShifts() {
       setStartTime('');
       setEndTime('');
       setTitle('');
+      setDeadlineDays(DEFAULT_DEADLINE_DAYS);
       setNote('');
       setSelected(new Set());
       await load();
@@ -182,7 +186,7 @@ export default function AdminShifts() {
               </div>
             )}
             <p className="text-xs text-gray-400">
-              日付を選んで「追加」。複数追加すると同じ時間・対象・タイトル・備考でまとめて掲示します。
+              日付を選んで「追加」。複数追加すると同じ時間・対象・期限の日数・タイトル・備考でまとめて掲示します。
             </p>
           </div>
           <div className="flex gap-2">
@@ -195,6 +199,29 @@ export default function AdminShifts() {
               <TimeSelect value={endTime} onChange={setEndTime} required />
             </label>
           </div>
+          <label className="flex flex-col gap-1 text-sm">
+            提出期限
+            <span className="flex items-center gap-1">
+              日付の
+              <input
+                type="number"
+                min={0}
+                max={MAX_DEADLINE_DAYS}
+                step={1}
+                value={deadlineDays}
+                onChange={(e) => setDeadlineDays(Number(e.target.value))}
+                required
+                className="w-20 rounded border px-2 py-2"
+              />
+              日前の 23:59 まで
+            </span>
+            <span className="text-xs text-gray-400">
+              {dates.length > 0 && Number.isInteger(deadlineDays) && deadlineDays >= 0
+                ? `${dates[0]} の枠は ${addDays(dates[0], -deadlineDays)} まで。`
+                : ''}
+              掲示したあとも、枠を開いて日付で直せます。
+            </span>
+          </label>
           <label className="flex flex-col gap-1 text-sm">
             タイトル（任意）
             <input

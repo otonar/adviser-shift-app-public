@@ -7,6 +7,7 @@ import { jsonError, jsonOk, parseBody, verifyOrigin, forbiddenOrigin, withRoute 
 
 // POST: 複数日のシフト枠をまとめて作成（管理者）。
 // slot_type・時間・タイトル・備考・対象者は共通、日付だけ複数。各枠に役割（初期0）を初期化。
+// 提出期限は「各枠の日付の何日前」で共通に決める（未指定なら既定の14日前）。
 async function postHandler(req: Request) {
   if (!(await verifyOrigin())) return forbiddenOrigin();
   const admin = await authenticateAdmin();
@@ -14,8 +15,16 @@ async function postHandler(req: Request) {
 
   const parsed = await parseBody(req, createShiftsBulkSchema);
   if (!parsed.ok) return parsed.response;
-  const { slot_type, dates, start_time, end_time, title, note, target_user_ids } =
-    parsed.data;
+  const {
+    slot_type,
+    dates,
+    start_time,
+    end_time,
+    title,
+    deadline_days_before,
+    note,
+    target_user_ids,
+  } = parsed.data;
 
   const supabase = getSupabaseAdmin();
   const uniqueDates = [...new Set(dates)];
@@ -26,7 +35,7 @@ async function postHandler(req: Request) {
     date,
     start_time,
     end_time,
-    deadline: computeDeadline(date),
+    deadline: computeDeadline(date, deadline_days_before),
     note: note ?? null,
     // 未入力なら列ごと送らない（title 列を追加する前の DB でも作成できるように）
     ...(title ? { title } : {}),
