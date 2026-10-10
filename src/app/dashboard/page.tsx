@@ -8,18 +8,7 @@ import {
   nextRole,
 } from '@/lib/staff-queries';
 import { NO_ROLE } from '@/types';
-
-// 提出期限を JST で「M/D(曜) HH:MM」に整形する。
-function formatDeadlineJst(iso: string): string {
-  return new Intl.DateTimeFormat('ja-JP', {
-    timeZone: 'Asia/Tokyo',
-    month: 'numeric',
-    day: 'numeric',
-    weekday: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(iso));
-}
+import { formatDeadlineJst } from '@/lib/datetime';
 
 function hm(t: string) {
   return t.slice(0, 5);

@@ -41,6 +41,7 @@ const {
   computeDeadline,
   deadlineFromDate,
   deadlineDateJst,
+  formatDeadlineJst,
   addDays,
   daysBetween,
   isRealDate,
@@ -235,6 +236,7 @@ check('0日前 = シフト当日の 23:59:59', computeDeadline('2026-04-03', 0),
 check('期限日から期限を作る', deadlineFromDate('2026-10-02'), '2026-10-02T23:59:59+09:00');
 check('期限の JST の日付（+09:00 表記）', deadlineDateJst('2026-10-02T23:59:59+09:00'), '2026-10-02');
 check('期限の JST の日付（DB が返す UTC 表記でも同じ日）', deadlineDateJst('2026-10-02T14:59:59+00:00'), '2026-10-02');
+check('期限の表示（UTC 表記でも JST の日時で出す）', formatDeadlineJst('2026-10-02T14:59:59+00:00'), '10/2(金) 23:59');
 check('日付を足す（月またぎ）', addDays('2026-01-30', 3), '2026-02-02');
 check('日数差', daysBetween('2026-10-02', '2026-10-10'), 8);
 check('日数差（逆向きは負）', daysBetween('2026-10-10', '2026-10-02'), -8);
