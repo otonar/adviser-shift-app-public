@@ -73,6 +73,20 @@ export function deadlineDateJst(deadline: string): string {
 }
 
 /**
+ * 提出期限を JST で「M/D(曜) HH:MM」に整形する（スタッフ向けの表示用）。
+ */
+export function formatDeadlineJst(deadline: string): string {
+  return new Intl.DateTimeFormat('ja-JP', {
+    timeZone: 'Asia/Tokyo',
+    month: 'numeric',
+    day: 'numeric',
+    weekday: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(deadline));
+}
+
+/**
  * 期限切れかどうか（サーバー現在時刻基準）。
  */
 export function isExpired(deadline: string): boolean {

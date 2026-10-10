@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { NO_ROLE } from '@/types';
+import { formatDeadlineJst } from '@/lib/datetime';
 
 type Slot = {
   id: string;
@@ -75,6 +76,9 @@ function ShiftCard({ slot, onSaved }: { slot: Slot; onSaved: () => void }) {
           {slot.title && <p className="font-bold">{slot.title}</p>}
           <p className="text-sm text-gray-600">
             {hm(slot.start_time)}〜{hm(slot.end_time)}
+          </p>
+          <p className="text-xs text-gray-500">
+            提出期限 {formatDeadlineJst(slot.deadline)} まで
           </p>
         </div>
         <span
@@ -243,6 +247,9 @@ function BulkSubmit({ slots, onSaved }: { slots: Slot[]; onSaved: () => void }) 
                 {choice === null && (
                   <span className="ml-1 text-xs text-gray-400">（未回答）</span>
                 )}
+                <span className="block text-xs text-gray-500">
+                  提出期限 {formatDeadlineJst(slot.deadline)} まで
+                </span>
               </div>
               <div className="flex gap-1">
                 <button
