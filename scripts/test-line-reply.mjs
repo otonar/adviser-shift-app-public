@@ -148,9 +148,9 @@ console.log('\n■ 未提出の枠（buildPendingSlotsReply）');
   const text = buildPendingSlotsReply(slots, TODAY, APP);
   ok('件数を見出しに出す', text.startsWith('【未提出の枠】3 件'), text);
   ok('締切が近い順（10/15 → 10/16 → 10/17）', text.indexOf('10/15') < text.indexOf('10/16') && text.indexOf('10/16') < text.indexOf('10/17'), text);
-  ok('締切が今日なら「今日まで！」（JST の暦日で判定）', text.includes('締切 10/1(木)（今日まで！）'), text);
-  ok('締切が明日なら「明日まで」', text.includes('締切 10/2(金)（明日まで）'), text);
-  ok('それ以降は「あと N 日」', text.includes('締切 10/3(土)（あと2日）'), text);
+  ok('締切が今日なら「今日まで！」（JST の暦日で判定）', text.includes('提出期限 10/1(木) 23:59（今日まで！）'), text);
+  ok('締切が明日なら「明日まで」', text.includes('提出期限 10/2(金) 23:59（明日まで）'), text);
+  ok('それ以降は「あと N 日」', text.includes('提出期限 10/3(土) 23:59（あと2日）'), text);
   ok('タイトルがあれば種別の後ろに出す', text.includes('10/15(木) 09:00〜12:00（研修）学び研修\n'), text);
   ok('提出画面へのリンク', text.endsWith(`${APP}/dashboard/shifts`), text);
 }

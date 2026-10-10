@@ -1,4 +1,5 @@
 import { NO_ROLE, SLOT_TYPE_LABEL, type SlotType } from '@/types';
+import { formatDeadlineJst } from '@/lib/datetime';
 
 // LINE のトークで送られてきた言葉に返す文面を作る（Webhook から使う）。
 //
@@ -153,7 +154,7 @@ export function buildPendingSlotsReply(
     const due = jstDate(s.deadline);
     const left = daysBetween(today, due);
     const when = left <= 0 ? '今日まで！' : left === 1 ? '明日まで' : `あと${left}日`;
-    return `・${formatDate(s.date)} ${timeRange(s.start_time, s.end_time)}${slotLabel(s.slot_type, s.title)}\n　締切 ${formatDate(due)}（${when}）`;
+    return `・${formatDate(s.date)} ${timeRange(s.start_time, s.end_time)}${slotLabel(s.slot_type, s.title)}\n　提出期限 ${formatDeadlineJst(s.deadline)}（${when}）`;
   });
   const rest = sorted.length - MAX_ITEMS;
   return (
@@ -168,7 +169,7 @@ export function buildHelpReply(appUrl: string): string {
   return (
     '次の言葉を送ると返事をします。\n' +
     '・「直近のシフト」… 確定したこれからのシフトと役割\n' +
-    '・「未提出の枠」… まだ希望を出していない枠と締切\n\n' +
+    '・「未提出の枠」… まだ希望を出していない枠と提出期限\n\n' +
     `アプリはこちら:\n${appLink(appUrl, '/dashboard')}`
   );
 }
