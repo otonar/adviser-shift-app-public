@@ -2,7 +2,7 @@ import { getSupabaseAdmin } from '@/lib/supabase';
 import { sendPushMessage, isLineConfigured } from '@/lib/line';
 import { optionalEnv } from '@/lib/env';
 import { jsonError, jsonOk, withRoute } from '@/lib/http';
-import { todayJst } from '@/lib/datetime';
+import { todayJst, formatDeadlineJst } from '@/lib/datetime';
 import { SLOT_TYPE_LABEL, type SlotType } from '@/types';
 
 // シフト希望の提出リマインド（Vercel Cron から毎朝 JST 8:00 に実行）。
@@ -50,6 +50,7 @@ type DueSlot = {
   start_time: string;
   end_time: string;
   title: string | null;
+  deadline: string;
 };
 
 async function handler(req: Request) {
@@ -67,7 +68,7 @@ async function handler(req: Request) {
   // 1. 期限が今日(JST)・受付中のシフト枠
   const { data: slotsRaw, error: slotsErr } = await supabase
     .from('shift_slots')
-    .select('id, slot_type, date, start_time, end_time, title')
+    .select('id, slot_type, date, start_time, end_time, title, deadline')
     .eq('assignment_status', 'open')
     .gte('deadline', start)
     .lt('deadline', end);
@@ -146,9 +147,10 @@ async function handler(req: Request) {
       continue;
     }
     const dueSlotIds = dueByUser.get(u.id) ?? [];
-    const lines = dueSlotIds
+    const dueSlots = dueSlotIds
       .map((id) => slotById.get(id))
-      .filter((s): s is DueSlot => Boolean(s))
+      .filter((s): s is DueSlot => Boolean(s));
+    const lines = [...dueSlots]
       .sort((a, b) =>
         a.date !== b.date
           ? a.date < b.date
@@ -164,9 +166,14 @@ async function handler(req: Request) {
       );
     if (lines.length === 0) continue;
 
+    // 期限は通常どの枠もその日の 23:59。違う時刻の枠が混ざっていたら、いちばん早いものを伝える。
+    const earliest = dueSlots.reduce((a, b) =>
+      new Date(a.deadline).getTime() <= new Date(b.deadline).getTime() ? a : b
+    );
+
     const message =
       '【シフト希望 提出リマインド】\n' +
-      '本日が提出期限です。まだ希望を提出していないシフトがあります。\n\n' +
+      `提出期限は本日 ${formatDeadlineJst(earliest.deadline)} までです。まだ希望を提出していないシフトがあります。\n\n` +
       `${lines.join('\n')}\n\n` +
       `アプリから提出してください:\n${APP_URL}/dashboard/shifts`;
 
