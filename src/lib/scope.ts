@@ -20,3 +20,10 @@ export async function visibleScopes(userId: string): Promise<Scope[]> {
     Array.isArray(row?.training_roles) && row.training_roles.includes(CORE_ROLE);
   return isCore ? ['all', 'core'] : ['all'];
 }
+
+/**
+ * コアメンバーかどうか（欠席連絡の一覧を見られるか）。取得に失敗したら false。
+ */
+export async function isCoreMember(userId: string): Promise<boolean> {
+  return (await visibleScopes(userId)).includes('core');
+}

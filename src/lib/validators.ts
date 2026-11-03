@@ -7,6 +7,7 @@ import {
   SURVEY_ANSWER_TYPES,
 } from '@/types';
 import { MAX_DEADLINE_DAYS, isRealDate } from '@/lib/datetime';
+import { ABSENCE_REASON_MAX } from '@/lib/absence';
 
 // 全 API Route Handler はここで定義した zod スキーマでバリデーションする。
 
@@ -160,6 +161,17 @@ export const bulkSubmissionSchema = z.object({
     .max(200),
 });
 export type BulkSubmissionInput = z.infer<typeof bulkSubmissionSchema>;
+
+// ===== 欠席連絡（提出期限後） =====
+
+export const absenceReportSchema = z.object({
+  reason: z
+    .string()
+    .trim()
+    .min(1, '理由を書いてください')
+    .max(ABSENCE_REASON_MAX, `理由は${ABSENCE_REASON_MAX}文字以内にしてください`),
+});
+export type AbsenceReportInput = z.infer<typeof absenceReportSchema>;
 
 // ===== 役割割り振り =====
 
