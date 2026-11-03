@@ -343,5 +343,43 @@ console.log('\n■ 欠席連絡（src/lib/absence.ts）');
   );
 }
 
+// ===== 公開後の差し替え =====================================================
+console.log('\n■ 割り振りの差分と文面（src/lib/assignment-change.ts）');
+{
+  const { diffAssignments, hasChanges, slotWhen, confirmedMessage, removedMessage, roleChangedMessage } =
+    await load('src/lib/assignment-change.ts');
+
+  const before = [
+    { userId: 'a', role: '受付' },
+    { userId: 'b', role: 'アテンド' },
+    { userId: 'c', role: 'PC' },
+  ];
+  const after = [
+    { userId: 'a', role: '受付' }, // 変わらない
+    { userId: 'b', role: '受付' }, // 役割変更
+    { userId: 'd', role: 'PC' }, // 追加（c の代役）
+  ];
+  check('差分: 追加・外す・役割変更', diffAssignments(before, after), {
+    added: [{ userId: 'd', role: 'PC' }],
+    removed: [{ userId: 'c', role: 'PC' }],
+    changed: [{ userId: 'b', from: 'アテンド', to: '受付' }],
+  });
+  check('差分: 変わらない人は入らない', hasChanges(diffAssignments(before, [...before].reverse())), false);
+  check('差分: 全員外す', diffAssignments(before, []).removed.length, 3);
+
+  const when = slotWhen({ date: '2026-11-10', start_time: '13:00:00', end_time: '16:00:00', title: '入学式' });
+  check('枠の書き方', when, '2026-11-10 13:00〜16:00 入学式');
+  check(
+    '枠の書き方（タイトルなし）',
+    slotWhen({ date: '2026-11-10', start_time: '13:00:00', end_time: '16:00:00', title: null }),
+    '2026-11-10 13:00〜16:00'
+  );
+  check('確定の文面（公開時と同じ）', confirmedMessage(when, '受付'), 'シフト確定: 2026-11-10 13:00〜16:00 入学式 あなたの役割は「受付」です');
+  check('確定の文面（役割なし）', confirmedMessage(when, '役割なし'), 'シフト確定: 2026-11-10 13:00〜16:00 入学式 出勤です（役割の指定はありません）');
+  check('外れた文面', removedMessage(when), 'シフト変更: 2026-11-10 13:00〜16:00 入学式 のシフトから外れました（出勤しなくて大丈夫です）');
+  check('役割変更の文面', roleChangedMessage(when, 'アテンド', '受付'), 'シフト変更: 2026-11-10 13:00〜16:00 入学式 あなたの役割が「アテンド」から「受付」に変わりました');
+  check('役割変更の文面（役割なしへ）', roleChangedMessage(when, '受付', '役割なし'), 'シフト変更: 2026-11-10 13:00〜16:00 入学式 あなたの役割が「受付」から役割の指定なしに変わりました');
+}
+
 console.log(failed === 0 ? '\n=> 全項目 OK' : `\n=> ${failed} 件失敗`);
 process.exit(failed === 0 ? 0 : 1);

@@ -57,6 +57,8 @@ export type AbsenceListItem = {
   user_name: string;
   // 確定済みの割り振りがあればその役割（無ければ null）
   role: string | null;
+  // 対応済み＝確定済みの枠で、割り振りに入っていない（外した・もともと入っていない）
+  resolved: boolean;
   slot: {
     id: string;
     date: string;
@@ -125,6 +127,8 @@ export async function fetchUpcomingAbsences(): Promise<AbsenceListItem[]> {
       created_at: r.created_at as string,
       user_name: one(r.users as { name: string } | { name: string }[] | null)?.name ?? '(不明)',
       role: roleByKey.get(`${slot.id}:${r.user_id}`) ?? null,
+      resolved:
+        slot.assignment_status === 'published' && !roleByKey.has(`${slot.id}:${r.user_id}`),
       slot: {
         id: slot.id,
         date: slot.date,
