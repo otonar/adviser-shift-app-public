@@ -59,6 +59,11 @@ export default async function AbsencesPage() {
               {a.slot.title && <p className="font-bold">{a.slot.title}</p>}
               <p className="mt-1">
                 <span className="font-bold">{a.user_name}</span> さん
+                {a.resolved && (
+                  <span className="ml-1 whitespace-nowrap rounded bg-green-100 px-1.5 py-0.5 text-xs text-green-800">
+                    対応済み（割り振りから外れています）
+                  </span>
+                )}
                 {a.role !== null && (
                   <span className="ml-1 text-sm text-gray-600">
                     （{a.role === NO_ROLE ? '役割の指定なし' : `役割: ${a.role}`}）

@@ -34,7 +34,8 @@ export default async function Dashboard() {
   const isCore = await isCoreMember(auth.userId);
   const absenceCount = isCore
     ? await fetchUpcomingAbsences()
-        .then((list) => list.length)
+        // 割り振りから外し済み（対応済み）のものは数えない
+        .then((list) => list.filter((a) => !a.resolved).length)
         .catch(() => null)
     : null;
 
@@ -89,8 +90,8 @@ export default async function Dashboard() {
             {absenceCount === null
               ? '一覧を見る'
               : absenceCount > 0
-                ? `今日以降のシフトに ${absenceCount} 件あります`
-                : 'ありません'}
+                ? `未対応が ${absenceCount} 件あります`
+                : '未対応はありません'}
           </span>
         </Link>
       )}

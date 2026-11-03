@@ -1,7 +1,7 @@
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { authenticateAdmin } from '@/lib/middleware';
 import { sendMulticast } from '@/lib/line';
-import { NO_ROLE } from '@/types';
+import { confirmedMessage, slotWhen } from '@/lib/assignment-change';
 import { jsonError, jsonOk, verifyOrigin, forbiddenOrigin, withRoute, isUuid, notFound } from '@/lib/http';
 
 const MULTICAST_CHUNK = 500; // LINE multicast の宛先上限
@@ -42,16 +42,9 @@ async function postHandler(_req: Request, { params }: Params) {
     .select('user_id, role, users(name, line_user_id, is_active)')
     .eq('shift_slot_id', slotId);
 
-  const startHm = slot.start_time.slice(0, 5);
-  const endHm = slot.end_time.slice(0, 5);
-
   // タイトルがあれば「10/10 13:00〜16:00 共済研修」のように何の枠かも伝える
-  const when = `${slot.date} ${startHm}〜${endHm}${slot.title ? ` ${slot.title}` : ''}`;
-
-  const buildMessage = (role: string) =>
-    role === NO_ROLE
-      ? `シフト確定: ${when} 出勤です（役割の指定はありません）`
-      : `シフト確定: ${when} あなたの役割は「${role}」です`;
+  const when = slotWhen(slot);
+  const buildMessage = (role: string) => confirmedMessage(when, role);
 
   // メッセージは役割ごとに異なるため、同一メッセージの連携済みユーザーをまとめて multicast する。
   const linked: { userId: string; lineUserId: string; message: string }[] = [];

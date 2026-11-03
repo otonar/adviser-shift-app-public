@@ -67,6 +67,8 @@ export default function ShiftDetail({ shiftId }: { shiftId: string }) {
   // 編集用 state
   const [reqs, setReqs] = useState<Record<string, number>>({});
   const [editAssign, setEditAssign] = useState<Assignment[]>([]);
+  // 確定（公開）後の差し替えモード。オンの間だけ公開済みの割り振りを編集できる
+  const [swapping, setSwapping] = useState(false);
 
   // 対象者編集
   const [users, setUsers] = useState<SelectableUser[]>([]);
@@ -196,6 +198,49 @@ export default function ShiftDetail({ shiftId }: { shiftId: string }) {
     await load();
   }
 
+  // 公開後の差し替え。変更があった人にだけ LINE が届く（追加・外れた・役割変更）
+  async function saveSwap() {
+    if (!detail) return;
+    const before = new Map(detail.assignments.map((a) => [a.user_id, a]));
+    const after = new Map(editAssign.map((a) => [a.user_id, a]));
+    const lines: string[] = [];
+    for (const a of editAssign) {
+      const b = before.get(a.user_id);
+      if (!b) lines.push(`追加: ${a.name}（${a.role}）`);
+      else if (b.role !== a.role) lines.push(`役割変更: ${a.name}（${b.role} → ${a.role}）`);
+    }
+    for (const b of detail.assignments) {
+      if (!after.has(b.user_id)) lines.push(`外す: ${b.name}（${b.role}）`);
+    }
+    if (lines.length === 0) {
+      setNotice('変更はありません');
+      setSwapping(false);
+      return;
+    }
+    if (
+      !window.confirm(
+        `${lines.join('\n')}\n\nこの内容で差し替えます。変更があった人にだけ LINE で知らせます。よろしいですか？`
+      )
+    )
+      return;
+    const assignments = editAssign.map((a) => ({ userId: a.user_id, role: a.role }));
+    const result = await call(`/api/assignments/${shiftId}/swap`, 'POST', { assignments });
+    if (!result) return;
+    const unnotified = Array.isArray(result.unnotified) ? (result.unnotified as string[]) : [];
+    setNotice(
+      unnotified.length > 0
+        ? `差し替えました。LINE で知らせられなかった人がいます（直接伝えてください）: ${unnotified.join('・')}`
+        : `差し替えました。変更があった ${Number(result.notified ?? 0)} 人に LINE で知らせました。`
+    );
+    setSwapping(false);
+    await load();
+  }
+
+  function cancelSwap() {
+    if (detail) setEditAssign(detail.assignments);
+    setSwapping(false);
+  }
+
   async function reset() {
     if (!window.confirm('割り振りを破棄して受付中に戻します。よろしいですか？')) return;
     if (await call(`/api/assignments/${shiftId}/reset`, 'POST')) await load();
@@ -258,13 +303,22 @@ export default function ShiftDetail({ shiftId }: { shiftId: string }) {
   const { slot, targets } = detail;
   const absences = detail.absences ?? [];
   const absentIds = new Set(absences.map((a) => a.user_id));
+  // 確定済みの枠で割り振りに入っていなければ「対応済み」（保存済みの割り振りで判定する）
+  const savedAssignedIds = new Set(detail.assignments.map((a) => a.user_id));
+  const isResolved = (userId: string) =>
+    detail.slot.assignment_status === 'published' && !savedAssignedIds.has(userId);
   const roles = rolesForSlotType(slot.slot_type);
   const status = slot.assignment_status;
   const assignedIds = new Set(editAssign.map((a) => a.user_id));
   // 脱退した人は手動追加の候補にも出さない（自動割り振りが外すのと揃える）
-  const availableToAdd = targets.filter(
-    (t) => !assignedIds.has(t.id) && t.is_active
-  );
+  // 追加の候補はこの枠の対象者（在籍中）全員。○ の人を上に、×・未提出は後ろに並べて印を付ける
+  // （急な代役は「× だったけど行ける」人のこともあるので候補から外さない）
+  const availabilityOrder = (t: Target) => (t.available === true ? 0 : t.available === null ? 1 : 2);
+  const availableToAdd = targets
+    .filter((t) => !assignedIds.has(t.id) && t.is_active)
+    .sort((a, b) => availabilityOrder(a) - availabilityOrder(b));
+  // 割り振りの表を編集できるか（調整中、または確定後の差し替えモード）
+  const editable = status === 'draft' || (status === 'published' && swapping);
   const inactiveTargets = targets.filter((t) => !t.is_active);
   const deadlineDate = deadlineDateJst(slot.deadline);
 
@@ -304,6 +358,7 @@ export default function ShiftDetail({ shiftId }: { shiftId: string }) {
             {absences.map((a) => (
               <li key={a.user_id} className="rounded bg-white p-2">
                 <span className="font-bold">{a.name}</span>
+                {isResolved(a.user_id) && <ResolvedBadge />}
                 <span className="ml-2 text-xs text-gray-500">
                   {new Intl.DateTimeFormat('ja-JP', {
                     timeZone: 'Asia/Tokyo',
@@ -569,12 +624,17 @@ export default function ShiftDetail({ shiftId }: { shiftId: string }) {
 
         {status !== 'open' && (
           <div className="flex flex-col gap-3">
+            {swapping && (
+              <p className="rounded border border-amber-300 bg-amber-50 p-2 text-xs text-amber-800">
+                差し替え中です。外す・追加する・役割を変えるをしてから「差し替えを保存して通知」を押してください。LINE は変更があった人にだけ届きます。
+              </p>
+            )}
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b text-left text-gray-500">
                   <th className="py-1">名前</th>
                   <th className="py-1">役割</th>
-                  {status === 'draft' && <th className="py-1"></th>}
+                  {editable && <th className="py-1"></th>}
                 </tr>
               </thead>
               <tbody>
@@ -586,7 +646,7 @@ export default function ShiftDetail({ shiftId }: { shiftId: string }) {
                       {absentIds.has(a.user_id) && <AbsentBadge />}
                     </td>
                     <td className="py-1">
-                      {status === 'draft' ? (
+                      {editable ? (
                         <select
                           value={a.role}
                           onChange={(e) => {
@@ -606,7 +666,7 @@ export default function ShiftDetail({ shiftId }: { shiftId: string }) {
                         a.role
                       )}
                     </td>
-                    {status === 'draft' && (
+                    {editable && (
                       <td className="py-1 text-right">
                         <button
                           type="button"
@@ -626,7 +686,7 @@ export default function ShiftDetail({ shiftId }: { shiftId: string }) {
               </tbody>
             </table>
 
-            {status === 'draft' && availableToAdd.length > 0 && (
+            {editable && availableToAdd.length > 0 && (
               <div className="flex items-center gap-2 text-sm">
                 <span className="text-gray-500">追加:</span>
                 <select
@@ -653,6 +713,7 @@ export default function ShiftDetail({ shiftId }: { shiftId: string }) {
                   {availableToAdd.map((t) => (
                     <option key={t.id} value={t.id}>
                       {t.name}
+                      {t.available === true ? '（○）' : t.available === false ? '（×）' : '（未提出）'}
                     </option>
                   ))}
                 </select>
@@ -680,14 +741,49 @@ export default function ShiftDetail({ shiftId }: { shiftId: string }) {
                   </button>
                 </>
               )}
-              <button
-                type="button"
-                onClick={reset}
-                disabled={busy}
-                className="rounded border px-3 py-1.5 text-sm disabled:opacity-50"
-              >
-                やり直し
-              </button>
+              {status === 'published' &&
+                (swapping ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={saveSwap}
+                      disabled={busy}
+                      className="rounded bg-green-700 px-3 py-1.5 text-sm text-white disabled:opacity-50"
+                    >
+                      差し替えを保存して通知
+                    </button>
+                    <button
+                      type="button"
+                      onClick={cancelSwap}
+                      disabled={busy}
+                      className="rounded border px-3 py-1.5 text-sm disabled:opacity-50"
+                    >
+                      やめる
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNotice(null);
+                      setSwapping(true);
+                    }}
+                    disabled={busy}
+                    className="rounded bg-gray-900 px-3 py-1.5 text-sm text-white disabled:opacity-50"
+                  >
+                    割り振りを差し替える
+                  </button>
+                ))}
+              {!swapping && (
+                <button
+                  type="button"
+                  onClick={reset}
+                  disabled={busy}
+                  className="rounded border px-3 py-1.5 text-sm disabled:opacity-50"
+                >
+                  やり直し
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -730,6 +826,15 @@ function AbsentBadge() {
   return (
     <span className="ml-1 whitespace-nowrap rounded bg-red-100 px-1.5 py-0.5 text-xs text-red-800">
       欠席連絡あり
+    </span>
+  );
+}
+
+// 欠席連絡を出した人が確定済みの割り振りから外れている（対応済み）印。
+function ResolvedBadge() {
+  return (
+    <span className="ml-1 whitespace-nowrap rounded bg-green-100 px-1.5 py-0.5 text-xs text-green-800">
+      対応済み（割り振りから外れています）
     </span>
   );
 }
