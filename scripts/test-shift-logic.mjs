@@ -274,5 +274,74 @@ check('未来の期限は期限切れでない', isExpired('2999-01-01T23:59:59+
   check('在庫: 数分前の表現', formatStockFreshness(new Date(now - 5 * 60000).toISOString()).relative, '5分前');
 }
 
+// ===== 欠席連絡（提出期限後） ===============================================
+console.log('\n■ 欠席連絡（src/lib/absence.ts）');
+{
+  const {
+    slotStartMs,
+    absenceWindow,
+    isAbsenceEligible,
+    formatSlotDateJa,
+    buildAbsenceMessage,
+    buildAbsenceCancelMessage,
+  } = await load('src/lib/absence.ts');
+
+  const slot = {
+    date: '2026-11-10',
+    start_time: '13:00:00',
+    end_time: '16:00:00',
+    deadline: '2026-11-03T23:59:59+09:00',
+    slot_type: 'day',
+    title: '入学式',
+  };
+  const at = (iso) => new Date(iso).getTime();
+
+  check('開始時刻は JST', new Date(slotStartMs(slot)).toISOString(), '2026-11-10T04:00:00.000Z');
+  check('開始時刻: HH:MM でも同じ', slotStartMs({ ...slot, start_time: '13:00' }), slotStartMs(slot));
+  check('期限前は連絡しない（×に変える）', absenceWindow(slot, at('2026-11-03T23:59:00+09:00')), 'before_deadline');
+  check('期限ちょうどはまだ期限前', absenceWindow(slot, at('2026-11-03T23:59:59+09:00')), 'before_deadline');
+  check('期限を過ぎたら連絡できる', absenceWindow(slot, at('2026-11-04T00:00:00+09:00')), 'open');
+  check('当日の開始1分前まで連絡できる', absenceWindow(slot, at('2026-11-10T12:59:00+09:00')), 'open');
+  check('開始時刻ちょうどで締め切り', absenceWindow(slot, at('2026-11-10T13:00:00+09:00')), 'started');
+  check(
+    '期限が開始より後の枠（DB 直書きなど）でも開始後は started',
+    absenceWindow({ ...slot, deadline: '2026-11-11T23:59:59+09:00' }, at('2026-11-10T14:00:00+09:00')),
+    'started'
+  );
+
+  check('○で提出 → 出せる', isAbsenceEligible({ submittedAvailable: true, publishedAssigned: false }), true);
+  check('×で提出・割り振りなし → 出せない', isAbsenceEligible({ submittedAvailable: false, publishedAssigned: false }), false);
+  check('未提出・割り振りなし → 出せない', isAbsenceEligible({ submittedAvailable: null, publishedAssigned: false }), false);
+  check('×でも確定済みの割り振りあり → 出せる', isAbsenceEligible({ submittedAvailable: false, publishedAssigned: true }), true);
+
+  check('日付の表記', formatSlotDateJa('2026-11-10'), '11/10(火)');
+  check(
+    '欠席連絡の文面（役割あり）',
+    buildAbsenceMessage({ name: '山田', slot, role: '受付', reason: '体調不良のため' }),
+    [
+      '【欠席連絡】山田さん',
+      '11/10(火) 13:00〜16:00 当日 入学式',
+      '役割: 受付',
+      '理由: 体調不良のため',
+      '',
+      'アプリの「欠席連絡」で一覧を見られます。割り振りの調整が必要なら対応してください。',
+    ].join('\n')
+  );
+  ok(
+    '欠席連絡の文面（未確定の枠は役割の行を出さない）',
+    !buildAbsenceMessage({ name: '山田', slot: { ...slot, title: null }, role: null, reason: 'x' }).includes('役割')
+  );
+  ok(
+    '欠席連絡の文面（役割なしで出勤）',
+    buildAbsenceMessage({ name: '山田', slot, role: '役割なし', reason: 'x' }).includes('役割: 指定なし（出勤のみ）')
+  );
+  ok(
+    '取り消しの文面',
+    buildAbsenceCancelMessage({ name: '山田', slot }).startsWith(
+      '【欠席連絡の取り消し】山田さん\n11/10(火) 13:00〜16:00 当日 入学式\n'
+    )
+  );
+}
+
 console.log(failed === 0 ? '\n=> 全項目 OK' : `\n=> ${failed} 件失敗`);
 process.exit(failed === 0 ? 0 : 1);

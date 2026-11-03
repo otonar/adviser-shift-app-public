@@ -40,11 +40,19 @@ type Assignment = {
   role: string;
   is_active: boolean;
 };
+type Absence = {
+  user_id: string;
+  name: string;
+  reason: string;
+  created_at: string;
+};
 type Detail = {
   slot: Slot;
   targets: Target[];
   role_requirements: RoleReq[];
   assignments: Assignment[];
+  // 欠席連絡（提出期限後）。古い API では返ってこないので省略可
+  absences?: Absence[];
 };
 
 export default function ShiftDetail({ shiftId }: { shiftId: string }) {
@@ -248,6 +256,8 @@ export default function ShiftDetail({ shiftId }: { shiftId: string }) {
   if (!detail) return <p className="text-sm text-red-600">{error ?? 'エラー'}</p>;
 
   const { slot, targets } = detail;
+  const absences = detail.absences ?? [];
+  const absentIds = new Set(absences.map((a) => a.user_id));
   const roles = rolesForSlotType(slot.slot_type);
   const status = slot.assignment_status;
   const assignedIds = new Set(editAssign.map((a) => a.user_id));
@@ -281,6 +291,33 @@ export default function ShiftDetail({ shiftId }: { shiftId: string }) {
         <p className="rounded border border-amber-300 bg-amber-50 p-2 text-sm text-amber-800">
           {notice}
         </p>
+      )}
+
+      {/* 欠席連絡（提出期限後に本人が出したもの）。割り振りは自動では外さない */}
+      {absences.length > 0 && (
+        <section className="rounded border border-red-300 bg-red-50 p-4">
+          <h2 className="font-bold text-red-900">欠席連絡 {absences.length} 件</h2>
+          <p className="mt-1 text-xs text-red-800">
+            提出期限のあとに届いた連絡です。割り振りからは自動で外れていないので、必要なら調整してください。
+          </p>
+          <ul className="mt-2 flex flex-col gap-2 text-sm">
+            {absences.map((a) => (
+              <li key={a.user_id} className="rounded bg-white p-2">
+                <span className="font-bold">{a.name}</span>
+                <span className="ml-2 text-xs text-gray-500">
+                  {new Intl.DateTimeFormat('ja-JP', {
+                    timeZone: 'Asia/Tokyo',
+                    month: 'numeric',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  }).format(new Date(a.created_at))}
+                </span>
+                <p className="whitespace-pre-wrap text-gray-700">理由: {a.reason}</p>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
 
       {/* 基本情報の編集（掲示後も変更可） */}
@@ -496,6 +533,7 @@ export default function ShiftDetail({ shiftId }: { shiftId: string }) {
                   <td className={`py-1 ${t.is_active ? '' : 'text-gray-500'}`}>
                     {t.name}
                     {!t.is_active && <InactiveBadge />}
+                    {absentIds.has(t.id) && <AbsentBadge />}
                   </td>
                   <td className="py-1">
                     {!t.submitted ? (
@@ -545,6 +583,7 @@ export default function ShiftDetail({ shiftId }: { shiftId: string }) {
                     <td className={`py-1 ${a.is_active ? '' : 'text-gray-500'}`}>
                       {a.name}
                       {!a.is_active && <InactiveBadge />}
+                      {absentIds.has(a.user_id) && <AbsentBadge />}
                     </td>
                     <td className="py-1">
                       {status === 'draft' ? (
@@ -682,6 +721,15 @@ function InactiveBadge() {
   return (
     <span className="ml-1 whitespace-nowrap rounded bg-gray-200 px-1.5 py-0.5 text-xs text-gray-700">
       脱退
+    </span>
+  );
+}
+
+// 提出期限のあとに本人から欠席連絡が来ている印。
+function AbsentBadge() {
+  return (
+    <span className="ml-1 whitespace-nowrap rounded bg-red-100 px-1.5 py-0.5 text-xs text-red-800">
+      欠席連絡あり
     </span>
   );
 }

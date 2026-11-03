@@ -49,6 +49,22 @@ async function getHandler(_req: Request, { params }: Params) {
     .select('user_id, role, users(name, is_active)')
     .eq('shift_slot_id', slotId);
 
+  // 欠席連絡（提出期限後）。010 を適用する前の DB ではエラーになるが、空として扱う
+  const { data: absenceRows } = await supabase
+    .from('absence_reports')
+    .select('user_id, reason, created_at, users(name)')
+    .eq('shift_slot_id', slotId)
+    .order('created_at', { ascending: true });
+  const absences = (absenceRows ?? []).map((r) => {
+    const u = Array.isArray(r.users) ? r.users[0] : r.users;
+    return {
+      user_id: r.user_id,
+      name: u?.name ?? '(不明)',
+      reason: r.reason,
+      created_at: r.created_at,
+    };
+  });
+
   // 対象スタッフごとに提出状況をマージ
   const targets = (targetRows ?? []).map((t) => {
     // Supabase の関係取得は配列 or オブジェクトで返るため正規化
@@ -83,6 +99,7 @@ async function getHandler(_req: Request, { params }: Params) {
     targets,
     role_requirements: roleReqs ?? [],
     assignments,
+    absences,
   });
 }
 

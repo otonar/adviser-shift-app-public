@@ -67,6 +67,7 @@ export type NotificationType =
   | 'shift_reminder'
   | 'role_assigned'
   | 'shift_confirmed'
+  | 'absence_report' // 欠席連絡（コアメンバーへ）。取り消しの通知もこの種類で残す
   | 'custom';
 export type NotificationStatus = 'pending' | 'sent' | 'failed';
 

@@ -9,6 +9,8 @@ import {
 } from '@/lib/staff-queries';
 import { NO_ROLE } from '@/types';
 import { formatDeadlineJst } from '@/lib/datetime';
+import { isCoreMember } from '@/lib/scope';
+import { fetchUpcomingAbsences } from '@/lib/absence-server';
 
 function hm(t: string) {
   return t.slice(0, 5);
@@ -27,6 +29,14 @@ export default async function Dashboard() {
     fetchVisibleSurveys(auth.userId, 2).catch(() => []),
   ]);
   const next = nextRole(roles);
+
+  // 欠席連絡の一覧はコアメンバーだけに見せる。取得に失敗してもホームは壊さない（件数を出さないだけ）
+  const isCore = await isCoreMember(auth.userId);
+  const absenceCount = isCore
+    ? await fetchUpcomingAbsences()
+        .then((list) => list.length)
+        .catch(() => null)
+    : null;
 
   return (
     <div className="flex flex-col gap-4">
@@ -64,6 +74,25 @@ export default async function Dashboard() {
             未提出のシフト希望はありません ✓
           </p>
         </section>
+      )}
+
+      {/* 欠席連絡（コアメンバーのみ）。あるときだけ目立たせる */}
+      {isCore && (
+        <Link
+          href="/dashboard/absences"
+          className={`rounded border p-4 ${
+            absenceCount ? 'border-red-300 bg-red-50 text-red-900' : 'bg-white'
+          }`}
+        >
+          <span className="font-bold">欠席連絡</span>
+          <span className="ml-2 text-sm">
+            {absenceCount === null
+              ? '一覧を見る'
+              : absenceCount > 0
+                ? `今日以降のシフトに ${absenceCount} 件あります`
+                : 'ありません'}
+          </span>
+        </Link>
       )}
 
       {/* 次のシフト */}

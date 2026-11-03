@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { NO_ROLE } from '@/types';
 import { formatDeadlineJst } from '@/lib/datetime';
+import { ABSENCE_REASON_MAX } from '@/lib/absence';
 
 type Slot = {
   id: string;
@@ -16,6 +17,10 @@ type Slot = {
   note: string | null;
   expired: boolean;
   submission: { available: boolean; note: string | null } | null;
+  // 欠席連絡（提出期限後）。010 を適用する前の API では返ってこないので省略可
+  absence?: { reason: string; created_at: string } | null;
+  can_report_absence?: boolean;
+  can_cancel_absence?: boolean;
 };
 
 // 確定した役割（published のみ・サーバー側で取得して渡される）
@@ -66,7 +71,9 @@ function ShiftCard({ slot, onSaved }: { slot: Slot; onSaved: () => void }) {
 
   return (
     <div
-      className={`rounded border bg-white p-4 ${slot.expired ? 'opacity-60' : ''}`}
+      className={`rounded border bg-white p-4 ${
+        slot.expired && !slot.can_report_absence && !slot.absence ? 'opacity-60' : ''
+      }`}
     >
       <div className="flex items-center justify-between">
         <div>
@@ -96,7 +103,10 @@ function ShiftCard({ slot, onSaved }: { slot: Slot; onSaved: () => void }) {
       {slot.note && <p className="mt-1 text-sm text-gray-500">{slot.note}</p>}
 
       {slot.expired ? (
-        <p className="mt-3 text-sm text-gray-500">提出期限が過ぎています</p>
+        <>
+          <p className="mt-3 text-sm text-gray-500">提出期限が過ぎています</p>
+          <AbsenceBox slot={slot} onSaved={onSaved} />
+        </>
       ) : (
         <div className="mt-3 flex flex-col gap-2">
           <input
@@ -139,6 +149,134 @@ function ShiftCard({ slot, onSaved }: { slot: Slot; onSaved: () => void }) {
           {error && <p className="text-sm text-red-600">{error}</p>}
         </div>
       )}
+    </div>
+  );
+}
+
+// 提出期限後の欠席連絡。期限後〜開始時刻前に、○で提出した人・確定済みの割り振りに
+// 入っている人だけが出せる（判定はサーバー。ここは返ってきたフラグで出し分けるだけ）。
+// 連絡はコアメンバー全員に LINE で届く。
+function AbsenceBox({ slot, onSaved }: { slot: Slot; onSaved: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function send(method: 'POST' | 'DELETE') {
+    setSaving(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const res = await fetch(`/api/shifts/${slot.id}/absence`, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: method === 'POST' ? JSON.stringify({ reason }) : undefined,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.error ?? '送信に失敗しました');
+        return;
+      }
+      const done = method === 'POST' ? '欠席を連絡しました' : '欠席連絡を取り消しました';
+      setMessage(
+        data.notified > 0
+          ? `${done}。コアメンバー ${data.notified} 人に LINE で知らせました。`
+          : `${done}。LINE で知らせられたコアメンバーはいませんでしたが、アプリの一覧には出ています。`
+      );
+      setOpen(false);
+      setReason('');
+      onSaved();
+    } catch {
+      setError('通信エラーが発生しました');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const feedback = (
+    <>
+      {message && <p className="mt-2 text-sm font-bold text-green-600">{message}</p>}
+      {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+    </>
+  );
+
+  if (slot.absence) {
+    return (
+      <div className="mt-2 rounded border border-red-200 bg-red-50 p-3 text-sm">
+        <p className="font-bold text-red-800">欠席を連絡済み</p>
+        <p className="mt-1 whitespace-pre-wrap text-gray-700">理由: {slot.absence.reason}</p>
+        {slot.can_cancel_absence && (
+          <button
+            type="button"
+            disabled={saving}
+            onClick={() => {
+              if (window.confirm('欠席連絡を取り消して、出勤する扱いに戻しますか？コアメンバーにも LINE で知らせます。')) {
+                void send('DELETE');
+              }
+            }}
+            className="mt-2 rounded border bg-white px-3 py-1 text-sm disabled:opacity-50"
+          >
+            {saving ? '送信中…' : '取り消す（出勤できるようになった）'}
+          </button>
+        )}
+        {feedback}
+      </div>
+    );
+  }
+
+  if (!slot.can_report_absence) return message || error ? feedback : null;
+
+  if (!open) {
+    return (
+      <div>
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="mt-2 rounded border border-red-300 bg-white px-3 py-1 text-sm text-red-700"
+        >
+          欠席を連絡する
+        </button>
+        {feedback}
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-2 flex flex-col gap-2 rounded border border-red-200 bg-red-50 p-3">
+      <p className="text-sm text-gray-700">
+        理由を書いて送ると、コアメンバー全員に LINE で届きます。
+      </p>
+      <textarea
+        value={reason}
+        onChange={(e) => setReason(e.target.value)}
+        maxLength={ABSENCE_REASON_MAX}
+        rows={3}
+        placeholder="例: 体調不良のため"
+        className="rounded border px-3 py-2 text-sm"
+      />
+      <div className="flex gap-2">
+        <button
+          type="button"
+          disabled={saving || reason.trim() === ''}
+          onClick={() => void send('POST')}
+          className="flex-1 rounded bg-red-600 py-2 text-sm font-bold text-white disabled:opacity-50"
+        >
+          {saving ? '送信中…' : '欠席を連絡する'}
+        </button>
+        <button
+          type="button"
+          disabled={saving}
+          onClick={() => {
+            setOpen(false);
+            setError(null);
+          }}
+          className="rounded border bg-white px-3 py-2 text-sm"
+        >
+          やめる
+        </button>
+      </div>
+      {feedback}
     </div>
   );
 }
@@ -307,6 +445,9 @@ function MyRoles({ roles }: { roles: MyRole[] }) {
   }
   return (
     <ul className="flex flex-col gap-2">
+      <li className="text-xs text-gray-500">
+        提出期限のあとに出られなくなったときは、「希望を出す」の該当シフトから欠席を連絡できます（開始時刻まで）。
+      </li>
       {roles.map((r, i) => (
         <li key={i} className="rounded border bg-white p-4">
           <p className="font-bold">
