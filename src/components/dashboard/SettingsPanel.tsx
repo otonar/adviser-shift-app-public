@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import LogoutButton from '@/components/auth/LogoutButton';
+import { THEMES, DEFAULT_THEME, isThemeId, type ThemeId } from '@/lib/themes';
 
 type Me = {
   id: string;
@@ -10,6 +11,7 @@ type Me = {
   day_roles: string[];
   training_roles: string[];
   line_linked: boolean;
+  theme?: ThemeId;
 };
 
 // LIFF SDK を CDN から動的ロード（未インストール依存を避ける）。
@@ -86,6 +88,10 @@ export default function SettingsPanel({
   return (
     <div className="flex flex-col gap-6">
       <NameSection initialName={me.name} onSaved={load} />
+      <ThemeSection
+        initialTheme={isThemeId(me.theme) ? me.theme : DEFAULT_THEME}
+        onSaved={() => router.refresh()}
+      />
       <PasswordSection />
       <RolesInfo dayRoles={me.day_roles} trainingRoles={me.training_roles} />
       <LineSection
@@ -174,12 +180,94 @@ function NameSection({
           type="button"
           disabled={saving}
           onClick={save}
-          className="rounded border bg-gray-900 px-4 py-2 text-sm text-white disabled:opacity-50"
+          className="rounded border bg-accent px-4 py-2 text-sm text-white disabled:opacity-50"
         >
           保存
         </button>
       </div>
       {msg && <p className="mt-2 text-sm text-green-600">{msg}</p>}
+      {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+    </Section>
+  );
+}
+
+// 着せ替え（テーマ色）。押した時点で保存する（保存ボタンは置かない）。
+// 見た目はすぐ変えて（レイアウトの data-theme を直接書き換える）、保存に失敗したら戻す。
+// 保存できたら router.refresh() でサーバー側のレイアウトにも反映する。
+function ThemeSection({
+  initialTheme,
+  onSaved,
+}: {
+  initialTheme: ThemeId;
+  onSaved: () => void;
+}) {
+  const [theme, setTheme] = useState<ThemeId>(initialTheme);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  function applyToPage(id: ThemeId) {
+    document.querySelector('[data-theme]')?.setAttribute('data-theme', id);
+  }
+
+  async function choose(id: ThemeId) {
+    if (id === theme || saving) return;
+    const prev = theme;
+    setTheme(id);
+    applyToPage(id);
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/users/me', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ theme: id }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error ?? '保存に失敗しました');
+      }
+      onSaved();
+    } catch (e) {
+      setTheme(prev);
+      applyToPage(prev);
+      setError(e instanceof Error ? e.message : '保存に失敗しました');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Section title="着せ替え">
+      <p className="mb-3 text-sm text-gray-600">
+        ボタンやタブの色を選べます。別の端末でログインしても同じ色になります。
+      </p>
+      <div role="radiogroup" aria-label="テーマ色" className="grid grid-cols-3 gap-2">
+        {THEMES.map((t) => {
+          const selected = t.id === theme;
+          return (
+            <button
+              key={t.id}
+              type="button"
+              role="radio"
+              aria-checked={selected}
+              disabled={saving}
+              onClick={() => choose(t.id)}
+              className={`flex items-center gap-2 rounded border px-2 py-3 text-sm disabled:opacity-60 ${
+                selected ? 'border-2 border-gray-900 font-bold' : 'border-gray-200'
+              }`}
+            >
+              <span
+                aria-hidden="true"
+                className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs text-white"
+                style={{ backgroundColor: t.swatch }}
+              >
+                {selected ? '✓' : ''}
+              </span>
+              <span className="truncate">{t.label}</span>
+            </button>
+          );
+        })}
+      </div>
       {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
     </Section>
   );
@@ -260,7 +348,7 @@ function PasswordSection() {
           type="button"
           disabled={saving || !current || !next || !confirm}
           onClick={save}
-          className="self-start rounded border bg-gray-900 px-4 py-2 text-sm text-white disabled:opacity-50"
+          className="self-start rounded border bg-accent px-4 py-2 text-sm text-white disabled:opacity-50"
         >
           {saving ? '変更中…' : 'パスワードを変更'}
         </button>

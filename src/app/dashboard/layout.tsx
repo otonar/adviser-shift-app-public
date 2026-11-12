@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { authenticateUser } from '@/lib/middleware';
+import { getUserTheme } from '@/lib/user-theme';
 import BottomNav from '@/components/layout/BottomNav';
 import GearIcon from '@/components/ui/GearIcon';
 
@@ -12,14 +13,17 @@ export default async function DashboardLayout({
 }) {
   const auth = await authenticateUser();
   if (!auth.ok) redirect('/');
+  // 着せ替え。サーバーで決めて data-theme に入れるので、読み込み時に色がちらつかない
+  const theme = await getUserTheme(auth.userId);
 
   return (
     // 下部ナビ（高さ 80px ＋ セーフエリア）に本文が隠れないよう余白を取る
-    <div className="min-h-screen pb-28 md:pb-0">
-      <header className="border-b bg-white">
+    <div data-theme={theme} className="min-h-screen bg-page pb-28 md:pb-0">
+      {/* ヘッダーの下線をテーマ色にして、選んだ色がどの画面でも分かるようにする */}
+      <header className="border-b-2 border-accent bg-white">
         <div className="mx-auto flex max-w-2xl items-center justify-between p-3">
           {/* タイトルはダッシュボードへの入口を兼ねる */}
-          <Link href="/dashboard" className="font-bold">
+          <Link href="/dashboard" className="font-bold text-accent">
             シフト管理
           </Link>
           <div className="flex items-center gap-2">

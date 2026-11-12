@@ -426,7 +426,7 @@ function BulkSubmit({ slots, onSaved }: { slots: Slot[]; onSaved: () => void }) 
         type="button"
         disabled={saving}
         onClick={save}
-        className="rounded bg-gray-900 py-2 text-sm text-white disabled:opacity-50"
+        className="rounded bg-accent py-2 text-sm text-white disabled:opacity-50"
       >
         {saving ? '保存中…' : 'まとめて保存'}
       </button>
@@ -520,14 +520,14 @@ export default function StaffShifts({
           type="button"
           onClick={() => setView('submit')}
           className={`flex-1 rounded px-3 py-2 text-sm ${
-            view === 'submit' ? 'bg-gray-900 font-bold text-white' : 'text-gray-600'
+            view === 'submit' ? 'bg-accent font-bold text-white' : 'text-gray-600'
           }`}
         >
           希望を出す
           {unanswered > 0 && (
             <span
               className={`ml-1 rounded-full px-1.5 text-xs ${
-                view === 'submit' ? 'bg-white text-gray-900' : 'bg-amber-100 text-amber-800'
+                view === 'submit' ? 'bg-white text-accent' : 'bg-amber-100 text-amber-800'
               }`}
             >
               {unanswered}
@@ -538,7 +538,7 @@ export default function StaffShifts({
           type="button"
           onClick={() => setView('roles')}
           className={`flex-1 rounded px-3 py-2 text-sm ${
-            view === 'roles' ? 'bg-gray-900 font-bold text-white' : 'text-gray-600'
+            view === 'roles' ? 'bg-accent font-bold text-white' : 'text-gray-600'
           }`}
         >
           確定した役割
@@ -559,7 +559,7 @@ export default function StaffShifts({
                 type="button"
                 onClick={() => setMode('single')}
                 className={`rounded border px-3 py-1 text-sm ${
-                  mode === 'single' ? 'bg-gray-900 text-white' : 'bg-white'
+                  mode === 'single' ? 'bg-accent text-white' : 'bg-white'
                 }`}
               >
                 1件ずつ
@@ -568,7 +568,7 @@ export default function StaffShifts({
                 type="button"
                 onClick={() => setMode('bulk')}
                 className={`rounded border px-3 py-1 text-sm ${
-                  mode === 'bulk' ? 'bg-gray-900 text-white' : 'bg-white'
+                  mode === 'bulk' ? 'bg-accent text-white' : 'bg-white'
                 }`}
               >
                 まとめて

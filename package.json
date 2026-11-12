@@ -8,10 +8,11 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "npm run test:analytics && npm run test:shift && npm run test:line",
+    "test": "npm run test:analytics && npm run test:shift && npm run test:line && npm run test:themes",
     "test:analytics": "node scripts/test-analytics.mjs",
     "test:shift": "node scripts/test-shift-logic.mjs",
     "test:line": "node scripts/test-line-reply.mjs",
+    "test:themes": "node scripts/test-themes.mjs",
     "icons": "node scripts/generate-icons.mjs",
     "richmenu": "node scripts/setup-richmenu.mjs",
     "format": "prettier --write ."
