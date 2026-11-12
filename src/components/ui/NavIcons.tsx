@@ -29,6 +29,17 @@ function Svg({
   );
 }
 
+// ホーム: 家（屋根の折れ線＋本体＋ドア）
+export function HomeIcon({ className }: IconProps) {
+  return (
+    <Svg className={className}>
+      <path d="M3 11l9-7 9 7" />
+      <path d="M5 9.5V20h14V9.5" />
+      <rect x="10" y="14" width="4" height="6" />
+    </Svg>
+  );
+}
+
 // シフト: カレンダー
 export function CalendarIcon({ className }: IconProps) {
   return (
