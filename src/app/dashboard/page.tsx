@@ -155,7 +155,7 @@ export default async function Dashboard() {
         )}
       </section>
 
-      {/* そのほかの入口。下部タブは4つに保つ方針なので、増える導線はここに置く */}
+      {/* そのほかの入口。下部タブは5つ（ホーム＋4）で打ち止めなので、増える導線はここに置く */}
       <div className="grid grid-cols-2 gap-2 text-center text-sm">
         <Link href="/dashboard/products" className="rounded border bg-white p-3">
           商品
