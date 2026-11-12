@@ -53,11 +53,12 @@ export default function BottomNav({
                 5タブだと幅 320px の端末で1つ 64px になる。いちばん長い
                 「アンケート」（5文字）が折り返さないよう、文字は 12px・左右余白は
                 最小（px-0.5）にしている（12px × 5 = 60px）。
+                press: 押している間だけ縮んで暗くなる（globals.css。ボタンと同じ動き）。
               */}
               <Link
                 href={tab.href}
                 aria-current={active ? 'page' : undefined}
-                className={`flex min-h-[5rem] touch-manipulation flex-col items-center justify-center gap-1.5 px-0.5 pt-2 pb-3 text-center text-xs leading-tight whitespace-nowrap transition-colors active:bg-gray-100 md:min-h-0 md:gap-0.5 md:py-2.5 md:text-xs ${bar} ${
+                className={`flex min-h-[5rem] press flex-col items-center justify-center gap-1.5 px-0.5 pt-2 pb-3 text-center text-xs leading-tight whitespace-nowrap active:bg-gray-100 md:min-h-0 md:gap-0.5 md:py-2.5 md:text-xs ${bar} ${
                   active
                     ? 'border-accent bg-accent-soft font-bold text-accent'
                     : 'border-transparent text-gray-500'

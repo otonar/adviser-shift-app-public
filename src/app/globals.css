@@ -42,3 +42,49 @@
   --accent-soft: 237 233 254; /* #ede9fe */
   --page: 248 246 255; /* #f8f6ff */
 }
+
+/*
+  ボタンの「押した感」（全画面共通）。
+  - 押している間: 少し縮んで（96%）少し暗くなる。指を離すと元に戻る。
+  - 押し込みは一瞬、戻りは少しゆっくり（押した手応えを出すため）。
+  - スマホのタップ時の青/灰色のハイライトは消し、代わりにこの動きで反応を見せる。
+  - リンク（<a>）をボタンのように見せている所は class="press" を付けると同じ動きになる（下部ナビのタブなど）。
+  - 押せない（disabled）ボタンは動かさない。動きを減らす設定の端末では縮めず暗くするだけ。
+*/
+@layer base {
+  button,
+  [role='button'],
+  input[type='submit'],
+  input[type='button'],
+  summary,
+  .press {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    transition:
+      transform 160ms cubic-bezier(0.2, 0.8, 0.2, 1),
+      filter 160ms ease-out,
+      color 150ms,
+      background-color 150ms,
+      border-color 150ms;
+  }
+  button:not(:disabled):active,
+  [role='button']:not([aria-disabled='true']):active,
+  input[type='submit']:not(:disabled):active,
+  input[type='button']:not(:disabled):active,
+  summary:active,
+  .press:active {
+    transform: scale(0.96);
+    filter: brightness(0.9);
+    transition-duration: 40ms;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    button:not(:disabled):active,
+    [role='button']:not([aria-disabled='true']):active,
+    input[type='submit']:not(:disabled):active,
+    input[type='button']:not(:disabled):active,
+    summary:active,
+    .press:active {
+      transform: none;
+    }
+  }
+}
