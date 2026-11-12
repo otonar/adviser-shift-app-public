@@ -1,3 +1,44 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/*
+  スタッフ画面の着せ替え（src/lib/themes.ts と対応）。
+  値は「R G B」の並び（Tailwind の bg-accent/50 のような透明度指定を効かせるため）。
+  - --accent:      テーマ色（ボタン・選択中のタブ・ヘッダーの線）。白文字と 4.5:1 以上
+  - --accent-soft: 選択中のタブの背景など、テーマ色の薄い版
+  - --page:        画面の背景
+  :root の値＝標準（今までの黒・グレー）。管理画面やログイン画面は data-theme を
+  付けないので、bg-accent などを使っても常に標準の見た目になる。
+*/
+:root,
+[data-theme='default'] {
+  --accent: 17 24 39; /* #111827 */
+  --accent-soft: 243 244 246; /* #f3f4f6 */
+  --page: 249 250 251; /* #f9fafb */
+}
+[data-theme='blue'] {
+  --accent: 29 78 216; /* #1d4ed8 */
+  --accent-soft: 219 234 254; /* #dbeafe */
+  --page: 245 249 255; /* #f5f9ff */
+}
+[data-theme='green'] {
+  --accent: 15 118 110; /* #0f766e */
+  --accent-soft: 204 251 241; /* #ccfbf1 */
+  --page: 240 253 250; /* #f0fdfa */
+}
+[data-theme='orange'] {
+  --accent: 194 65 12; /* #c2410c */
+  --accent-soft: 255 237 213; /* #ffedd5 */
+  --page: 255 247 237; /* #fff7ed */
+}
+[data-theme='pink'] {
+  --accent: 190 24 93; /* #be185d */
+  --accent-soft: 252 231 243; /* #fce7f3 */
+  --page: 253 246 250; /* #fdf6fa */
+}
+[data-theme='purple'] {
+  --accent: 109 40 217; /* #6d28d9 */
+  --accent-soft: 237 233 254; /* #ede9fe */
+  --page: 248 246 255; /* #f8f6ff */
+}

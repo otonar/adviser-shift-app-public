@@ -1,5 +1,6 @@
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { authenticateUser } from '@/lib/middleware';
+import { getUserTheme } from '@/lib/user-theme';
 import { clearUserCookie } from '@/lib/auth';
 import { updateMeSchema } from '@/lib/validators';
 import { jsonError, jsonOk, parseBody, verifyOrigin, forbiddenOrigin, withRoute } from '@/lib/http';
@@ -18,6 +19,9 @@ async function getHandler() {
   if (error) return jsonError('取得に失敗しました', 500, 'FETCH_FAILED');
   if (!data) return jsonError('ユーザーが見つかりません', 404, 'NOT_FOUND');
 
+  // theme は別クエリ（migration 011 未適用でも設定画面が開けるように。user-theme.ts 参照）
+  const theme = await getUserTheme(auth.userId);
+
   return jsonOk({
     user: {
       id: data.id,
@@ -25,11 +29,12 @@ async function getHandler() {
       day_roles: data.day_roles ?? [],
       training_roles: data.training_roles ?? [],
       line_linked: Boolean(data.line_user_id),
+      theme,
     },
   });
 }
 
-// PATCH: 名前変更・LINE連携/解除。役割は本人では変更できない（管理者のみ）。
+// PATCH: 名前変更・LINE連携/解除・着せ替え。役割は本人では変更できない（管理者のみ）。
 async function patchHandler(req: Request) {
   if (!(await verifyOrigin())) return forbiddenOrigin();
   const auth = await authenticateUser();
@@ -37,7 +42,7 @@ async function patchHandler(req: Request) {
 
   const parsed = await parseBody(req, updateMeSchema);
   if (!parsed.ok) return parsed.response;
-  const { name, line_user_id } = parsed.data;
+  const { name, line_user_id, theme } = parsed.data;
 
   const supabase = getSupabaseAdmin();
 
@@ -55,6 +60,7 @@ async function patchHandler(req: Request) {
   const update: Record<string, unknown> = {};
   if (name !== undefined) update.name = name;
   if (line_user_id !== undefined) update.line_user_id = line_user_id;
+  if (theme !== undefined) update.theme = theme;
   update.updated_at = new Date().toISOString();
 
   const { error } = await supabase

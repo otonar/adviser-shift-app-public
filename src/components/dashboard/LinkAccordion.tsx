@@ -70,7 +70,7 @@ export default function LinkAccordion({ sections }: { sections: LinkSection[] })
                       href={s.link.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-block rounded bg-gray-900 px-5 py-3 text-sm font-bold text-white"
+                      className="inline-block rounded bg-accent px-5 py-3 text-sm font-bold text-white"
                     >
                       {s.link.label}
                     </a>

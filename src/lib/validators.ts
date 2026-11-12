@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { THEME_IDS } from './themes';
 import {
   DAY_ROLES,
   TRAINING_ROLES,
@@ -302,12 +303,14 @@ export type UpdateSurveyInput = z.infer<typeof updateSurveySchema>;
 const dayRoleEnum = z.enum(DAY_ROLES);
 const trainingRoleEnum = z.enum(TRAINING_ROLES);
 
-// 役割は本人では変更できない（管理者のみ）。名前・LINE連携のみ本人が変更可。
+// 役割は本人では変更できない（管理者のみ）。名前・LINE連携・着せ替えのみ本人が変更可。
 export const updateMeSchema = z
   .object({
     name: z.string().trim().min(2, '名前は2文字以上').max(20, '名前は20文字以内').optional(),
     // LIFF から取得した LINE userId。null で連携解除。
     line_user_id: z.string().trim().min(1).max(100).nullable().optional(),
+    // 着せ替え（テーマ色）。決めた色だけ受け付ける
+    theme: z.enum(THEME_IDS).optional(),
   })
   .refine((v) => Object.keys(v).length > 0, {
     message: '更新項目がありません',

@@ -59,7 +59,7 @@ export default function BottomNav({
                 aria-current={active ? 'page' : undefined}
                 className={`flex min-h-[5rem] touch-manipulation flex-col items-center justify-center gap-1.5 px-0.5 pt-2 pb-3 text-center text-xs leading-tight whitespace-nowrap transition-colors active:bg-gray-100 md:min-h-0 md:gap-0.5 md:py-2.5 md:text-xs ${bar} ${
                   active
-                    ? 'border-gray-900 bg-gray-50 font-bold text-gray-900'
+                    ? 'border-accent bg-accent-soft font-bold text-accent'
                     : 'border-transparent text-gray-500'
                 }`}
               >

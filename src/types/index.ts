@@ -81,6 +81,7 @@ export interface User {
   line_user_id: string | null;
   day_roles: string[];
   training_roles: string[];
+  theme: string; // 着せ替え（src/lib/themes.ts の ThemeId）。migration 011
   is_active: boolean;
   failed_login_attempts: number;
   locked_until: string | null;

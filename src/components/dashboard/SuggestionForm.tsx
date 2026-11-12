@@ -155,7 +155,7 @@ export default function SuggestionForm() {
           type="button"
           disabled={saving || refreshing || !content.trim()}
           onClick={submit}
-          className="rounded border bg-gray-900 px-4 py-2 text-sm text-white disabled:opacity-50"
+          className="rounded border bg-accent px-4 py-2 text-sm text-white disabled:opacity-50"
         >
           {saving ? '送信中…' : '投稿する'}
         </button>

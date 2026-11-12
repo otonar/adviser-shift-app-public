@@ -64,7 +64,7 @@ export default async function Dashboard() {
           </ul>
           <Link
             href="/dashboard/shifts"
-            className="mt-3 inline-block rounded bg-gray-900 px-4 py-2 text-sm text-white"
+            className="mt-3 inline-block rounded bg-accent px-4 py-2 text-sm text-white"
           >
             希望を出す
           </Link>
