@@ -132,3 +132,40 @@
     }
   }
 }
+
+/*
+  シフトのカレンダーで月を移ったとき、マス目が移った向きから入ってくる動き（2026-11-24）。
+  次の月＝右から、前の月＝左から。動きを減らす設定の端末では動かさない。
+*/
+@keyframes cal-slide-from-right {
+  from {
+    transform: translateX(24px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+@keyframes cal-slide-from-left {
+  from {
+    transform: translateX(-24px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+.cal-slide-next {
+  animation: cal-slide-from-right 180ms ease-out;
+}
+.cal-slide-prev {
+  animation: cal-slide-from-left 180ms ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .cal-slide-next,
+  .cal-slide-prev {
+    animation: none;
+  }
+}
