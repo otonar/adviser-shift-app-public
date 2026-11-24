@@ -77,6 +77,50 @@
     filter: brightness(0.9);
     transition-duration: 40ms;
   }
+  /*
+    管理画面（data-admin の中）だけの押し心地（2026-11-24）。
+    管理画面のボタンは白地に枠線の小さいものが多く、上の「縮む＋少し暗く」だけでは
+    押したのが分かりにくかった。そこで物理ボタンのように:
+      - ふだんは下に薄い影（押せる物に見える）
+      - マウスを乗せると影が少し濃くなる（PC で押せる所が分かる）
+      - 押している間は 1px 沈み、影が内側に入って暗くなる（押し込んだ感じ）
+    影を付けるのは枠線か塗りのあるボタンだけ（文字だけのボタンに影が出ないように）。
+    一覧の行・カード・メニューのような横に広いものは .press-row: 縮めずに背景だけ暗くする
+    （幅いっぱいの物が縮むと画面が揺れて見えるため）。
+  */
+  [data-admin] :is(button, input[type='submit'], input[type='button']):is(
+      [class~='border'],
+      [class~='bg-gray-900'],
+      [class~='bg-green-700'],
+      [class~='bg-red-600']
+    ):not(:disabled):not(.press-row) {
+    box-shadow: 0 1px 2px rgb(0 0 0 / 0.08);
+  }
+  [data-admin] :is(button, input[type='submit'], input[type='button']):is(
+      [class~='border'],
+      [class~='bg-gray-900'],
+      [class~='bg-green-700'],
+      [class~='bg-red-600']
+    ):not(:disabled):not(.press-row):hover {
+    box-shadow: 0 2px 5px rgb(0 0 0 / 0.14);
+  }
+  [data-admin] :is(button, input[type='submit'], input[type='button']):not(:disabled):not(.press-row):active {
+    transform: translateY(1px) scale(0.97);
+    box-shadow: inset 0 2px 4px rgb(0 0 0 / 0.18);
+    filter: brightness(0.9);
+  }
+  .press-row {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    transition: filter 160ms ease-out, background-color 150ms;
+  }
+  .press-row:active,
+  button.press-row:not(:disabled):active,
+  summary.press-row:active {
+    transform: none;
+    filter: brightness(0.94);
+    transition-duration: 40ms;
+  }
   @media (prefers-reduced-motion: reduce) {
     button:not(:disabled):active,
     [role='button']:not([aria-disabled='true']):active,

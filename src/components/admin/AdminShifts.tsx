@@ -43,7 +43,7 @@ function SlotRow({ slot }: { slot: Slot }) {
     <li>
       <Link
         href={`/admin/shifts/${slot.id}`}
-        className="flex items-center justify-between gap-2 rounded border bg-white p-3 hover:bg-gray-50"
+        className="press-row flex items-center justify-between gap-2 rounded border bg-white p-3 hover:bg-gray-50"
       >
         <span className="min-w-0">
           <span className="font-bold">{formatDateJa(slot.date)}</span>{' '}
@@ -377,7 +377,7 @@ export default function AdminShifts() {
       </section>
       {past.length > 0 && (
         <details>
-          <summary className="cursor-pointer rounded border bg-white px-3 py-2 text-sm text-gray-600">
+          <summary className="press-row cursor-pointer rounded border bg-white px-3 py-2 text-sm text-gray-600">
             終わった枠（{past.length}件）
           </summary>
           <ul className="mt-2 flex flex-col gap-2">

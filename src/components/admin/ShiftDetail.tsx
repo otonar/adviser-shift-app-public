@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import type { SlotType, AssignmentStatus } from '@/types';
 import { NO_ROLE, SLOT_TYPE_LABEL } from '@/types';
@@ -527,10 +526,8 @@ export default function ShiftDetail({ shiftId }: { shiftId: string }) {
     <div className="flex max-w-3xl flex-col gap-6">
       {/* ヘッダー */}
       <div>
-        <Link href="/admin/shifts" className="text-sm text-gray-500 underline">
-          ← シフト一覧
-        </Link>
-        <div className="mt-2 flex items-start justify-between gap-2">
+        {/* 「← シフト一覧へ戻る」はページ（app/admin/shifts/[id]/page.tsx）側にある */}
+        <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             <h1 className="text-xl font-bold">
               {formatDateJa(slot.date)}

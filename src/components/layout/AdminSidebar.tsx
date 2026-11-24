@@ -56,7 +56,7 @@ export default function AdminSidebar() {
                 <Link
                   href={l.href}
                   aria-current={active ? 'page' : undefined}
-                  className={`block whitespace-nowrap border-b-2 px-4 py-3 text-sm md:border-b-0 md:border-l-4 md:py-2 ${
+                  className={`press-row block whitespace-nowrap border-b-2 px-4 py-3 text-sm md:border-b-0 md:border-l-4 md:py-2 ${
                     active
                       ? 'border-gray-900 bg-gray-100 font-bold'
                       : 'border-transparent text-gray-600'
