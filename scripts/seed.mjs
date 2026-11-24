@@ -38,22 +38,22 @@ const supabase = createClient(url, key, {
 });
 
 // 役割定義（src/types/index.ts と一致させること）
-// 当日: 全体会, 受付, アテンド, PC, 共済, 学び
-// 研修: コアメンバー, PC, 共済, 学び
+// 当日: 全体会, 受付, アテンド, PC, 加入, ミルパス, 学び
+// 研修: コアメンバー, PC, 加入, ミルパス, 学び
 
 // テストユーザー（全役割に複数候補が出るよう配分）
 const USERS = [
   { name: 'テスト_田中', day: ['全体会', '受付'], training: ['コアメンバー'] },
   { name: 'テスト_佐藤', day: ['受付', 'アテンド'], training: ['PC'] },
-  { name: 'テスト_鈴木', day: ['アテンド', 'PC'], training: ['共済'] },
-  { name: 'テスト_高橋', day: ['PC', '共済'], training: ['学び'] },
-  { name: 'テスト_伊藤', day: ['共済', '学び'], training: ['コアメンバー', 'PC'] },
-  { name: 'テスト_渡辺', day: ['学び', '全体会'], training: ['PC', '共済'] },
-  { name: 'テスト_山本', day: ['全体会', 'アテンド'], training: ['共済', '学び'] },
-  { name: 'テスト_中村', day: ['受付', 'PC'], training: ['コアメンバー', '学び'] },
-  { name: 'テスト_小林', day: ['アテンド', '共済'], training: ['PC'] },
-  { name: 'テスト_加藤', day: ['PC', '学び'], training: ['共済'] },
-  { name: 'テスト_吉田', day: ['全体会', '受付', 'アテンド'], training: ['コアメンバー'] },
+  { name: 'テスト_鈴木', day: ['アテンド', 'PC'], training: ['加入'] },
+  { name: 'テスト_高橋', day: ['PC', '加入'], training: ['学び'] },
+  { name: 'テスト_伊藤', day: ['加入', '学び'], training: ['コアメンバー', 'PC'] },
+  { name: 'テスト_渡辺', day: ['学び', '全体会'], training: ['PC', '加入'] },
+  { name: 'テスト_山本', day: ['全体会', 'アテンド'], training: ['加入', '学び'] },
+  { name: 'テスト_中村', day: ['受付', 'ミルパス'], training: ['コアメンバー', 'ミルパス'] },
+  { name: 'テスト_小林', day: ['アテンド', '加入'], training: ['PC'] },
+  { name: 'テスト_加藤', day: ['PC', '学び'], training: ['加入'] },
+  { name: 'テスト_吉田', day: ['全体会', 'ミルパス', 'アテンド'], training: ['ミルパス'] },
   { name: 'テスト_山田', day: [], training: [] }, // 役割未設定のケース
 ];
 
@@ -106,13 +106,15 @@ const DAY_ROLE_REQS = [
   { role: '受付', required_count: 2 },
   { role: 'アテンド', required_count: 2 },
   { role: 'PC', required_count: 2 },
-  { role: '共済', required_count: 1 },
+  { role: '加入', required_count: 1 },
+  { role: 'ミルパス', required_count: 1 },
   { role: '学び', required_count: 1 },
 ];
 const TRAINING_ROLE_REQS = [
   { role: 'コアメンバー', required_count: 1 },
   { role: 'PC', required_count: 1 },
-  { role: '共済', required_count: 1 },
+  { role: '加入', required_count: 1 },
+  { role: 'ミルパス', required_count: 1 },
   { role: '学び', required_count: 1 },
 ];
 

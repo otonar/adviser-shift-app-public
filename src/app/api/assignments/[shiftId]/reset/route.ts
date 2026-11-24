@@ -19,13 +19,13 @@ async function postHandler(_req: Request, { params }: Params) {
     .from('shift_assignments')
     .delete()
     .eq('shift_slot_id', slotId);
-  if (delError) return jsonError('やり直しに失敗しました', 500, 'RESET_FAILED');
+  if (delError) return jsonError('割り振りの破棄に失敗しました', 500, 'RESET_FAILED');
 
   const { error } = await supabase
     .from('shift_slots')
     .update({ assignment_status: 'open', updated_at: new Date().toISOString() })
     .eq('id', slotId);
-  if (error) return jsonError('やり直しに失敗しました', 500, 'RESET_FAILED');
+  if (error) return jsonError('割り振りの破棄に失敗しました', 500, 'RESET_FAILED');
 
   return jsonOk({ ok: true });
 }

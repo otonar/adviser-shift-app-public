@@ -1,18 +1,21 @@
 // =====================
 // 役割の定義
 // =====================
-// 当日用役割: '全体会', '受付', 'アテンド', 'PC', '共済', '学び'
-// 研修用役割: 'コアメンバー', 'PC', '共済', '学び'
+// 当日用役割: '全体会', '受付', 'アテンド', 'PC', '加入', 'ミルパス', '学び'
+// 研修用役割: 'コアメンバー', 'PC', '加入', 'ミルパス', '学び'
+// 2026-11-24 変更: 「共済」→「加入」、「ミルパス」を追加（migration 012 で既存データも置き換え。
+// 終わった枠の記録は「共済」のまま残る）。順番は画面の並び＝管理画面のチェック欄・必要人数の表の順。
 export const DAY_ROLES = [
   '全体会',
   '受付',
   'アテンド',
   'PC',
-  '共済',
+  '加入',
+  'ミルパス',
   '学び',
 ] as const;
 
-export const TRAINING_ROLES = ['コアメンバー', 'PC', '共済', '学び'] as const;
+export const TRAINING_ROLES = ['コアメンバー', 'PC', '加入', 'ミルパス', '学び'] as const;
 
 // 役割は付かないが出勤する人を表す特別ラベル（shift_assignments.role に格納）。
 // 実際の役割（DAY_ROLES/TRAINING_ROLES）とは別枠で扱う。
@@ -97,7 +100,7 @@ export interface ShiftSlot {
   end_time: string; // HH:MM:SS
   deadline: string; // ISO timestamp
   assignment_status: AssignmentStatus;
-  title: string | null; // 一覧で見分けるための短い名前（例: 共済研修）
+  title: string | null; // 一覧で見分けるための短い名前（例: PC研修）
   note: string | null;
   created_at: string;
   updated_at: string;

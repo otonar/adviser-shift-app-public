@@ -73,7 +73,7 @@ function timeRange(start: string, end: string): string {
   return `${start.slice(0, 5)}〜${end.slice(0, 5)}`;
 }
 
-// 枠の種別とタイトル。'（研修）共済研修' / タイトルが無ければ '（研修）'
+// 枠の種別とタイトル。'（研修）PC研修' / タイトルが無ければ '（研修）'
 function slotLabel(slotType: SlotType, title?: string | null): string {
   return `（${SLOT_TYPE_LABEL[slotType]}）${title ?? ''}`;
 }
