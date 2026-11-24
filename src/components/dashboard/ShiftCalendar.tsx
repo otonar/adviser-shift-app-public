@@ -96,8 +96,29 @@ export default function ShiftCalendar({
   const cells = monthGrid(ym.year, ym.month);
   const dayEntries = entries.filter((e) => e.date === selected);
 
+  // 月を移った向き（マス目が入ってくる向きのアニメーションに使う）
+  const [slide, setSlide] = useState<'next' | 'prev' | null>(null);
   function move(delta: number) {
+    setSlide(delta > 0 ? 'next' : 'prev');
     setYm((cur) => addMonths(cur.year, cur.month, delta));
+  }
+
+  // スマホで左右にスライドして隣の月へ（左へ＝次の月、右へ＝前の月）。
+  // 縦のスクロールと取り違えないよう、横に 50px 以上・かつ縦より横に大きく動いたときだけ。
+  const touchStart = useRef<{ x: number; y: number } | null>(null);
+  function onTouchStart(e: React.TouchEvent) {
+    const t = e.touches[0];
+    touchStart.current = { x: t.clientX, y: t.clientY };
+  }
+  function onTouchEnd(e: React.TouchEvent) {
+    const start = touchStart.current;
+    touchStart.current = null;
+    if (!start) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - start.x;
+    const dy = t.clientY - start.y;
+    if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+    move(dx < 0 ? 1 : -1);
   }
 
   return (
@@ -149,7 +170,15 @@ export default function ShiftCalendar({
           </div>
         </div>
 
-        <div className="px-3 pt-3">
+        {/* 曜日・マス目・凡例の範囲を左右にスライドすると月が変わる（縦のスクロールはそのまま） */}
+        <div
+          className="touch-pan-y px-3 pt-3"
+          onTouchStart={onTouchStart}
+          onTouchEnd={onTouchEnd}
+          onTouchCancel={() => {
+            touchStart.current = null;
+          }}
+        >
           {/* 曜日 */}
           <div className="grid grid-cols-7 text-center text-xs">
             {WEEK.map((w, i) => (
@@ -163,7 +192,16 @@ export default function ShiftCalendar({
           </div>
 
           {/* 日付のマス */}
-          <div className="grid grid-cols-7 gap-1">
+          <div
+            key={`${ym.year}-${ym.month}`}
+            className={`grid grid-cols-7 gap-1 ${
+              slide === 'next'
+                ? 'cal-slide-next'
+                : slide === 'prev'
+                  ? 'cal-slide-prev'
+                  : ''
+            }`}
+          >
             {cells.map((date, i) => {
               if (!date) return <div key={`blank-${i}`} />;
               const sum = byDate.get(date);
