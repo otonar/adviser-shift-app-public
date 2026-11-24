@@ -390,5 +390,39 @@ console.log('\n■ 割り振りの差分と文面（src/lib/assignment-change.ts
   check('役割変更の文面（役割なしへ）', roleChangedMessage(when, '受付', '役割なし'), 'シフト変更: 2026-11-10 13:00〜16:00 入学式 あなたの役割が「受付」から役割の指定なしに変わりました');
 }
 
+console.log('\n■ シフトのカレンダー（src/lib/calendar.ts）');
+{
+  const { buildCalendarEntries, summarizeByDate, monthGrid, addMonths } = await load('src/lib/calendar.ts');
+  const base = { start_time: '10:00:00', end_time: '12:00:00', slot_type: 'day', title: null };
+  const roles = [{ ...base, slot_id: 'c1', role: '受付', date: '2026-04-06' }];
+  const slots = [
+    { ...base, id: 'c1', date: '2026-04-06', expired: true, submission: { available: true }, absence: { reason: 'x' } },
+    { ...base, id: 'o1', date: '2026-04-08', expired: false, submission: { available: true } },
+    { ...base, id: 'u1', date: '2026-04-09', expired: false, submission: null },
+    { ...base, id: 'x1', date: '2026-04-10', expired: false, submission: { available: false } },
+    { ...base, id: 'e1', date: '2026-04-11', expired: true, submission: null },
+    { ...base, id: 'u2', date: '2026-04-08', start_time: '09:00:00', expired: false, submission: null },
+  ];
+  const entries = buildCalendarEntries(roles, slots);
+  check('カレンダー: 塗る枠（× と期限切れ未回答は出さない）', entries.map((e) => `${e.slotId}:${e.status}`), [
+    'c1:confirmed',
+    'u2:unanswered',
+    'o1:available',
+    'u1:unanswered',
+  ]);
+  check('カレンダー: 確定の役割と欠席連絡', [entries[0].role, entries[0].absence], ['受付', true]);
+  const sum = summarizeByDate(entries);
+  check('カレンダー: 同じ日は強い方（○ > 未回答）・件数', sum.get('2026-04-08'), { status: 'available', count: 2, absence: false });
+  check('カレンダー: 何もない日は無い', sum.has('2026-04-10'), false);
+  const grid = monthGrid(2026, 4);
+  check('カレンダー: 2026年4月は水曜始まり（空き3つ）', grid.slice(0, 4), [null, null, null, '2026-04-01']);
+  check('カレンダー: マス目は7の倍数', grid.length % 7, 0);
+  check('カレンダー: 2月（うるう年）', monthGrid(2028, 2).filter(Boolean).length, 29);
+  check('カレンダー: 月を足す（年またぎ）', [addMonths(2026, 12, 1), addMonths(2026, 1, -1)], [
+    { year: 2027, month: 1 },
+    { year: 2025, month: 12 },
+  ]);
+}
+
 console.log(failed === 0 ? '\n=> 全項目 OK' : `\n=> ${failed} 件失敗`);
 process.exit(failed === 0 ? 0 : 1);
