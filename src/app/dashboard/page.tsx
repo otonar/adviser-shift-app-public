@@ -5,16 +5,12 @@ import {
   fetchMyPublishedRoles,
   fetchMyPendingSlots,
   fetchVisibleSurveys,
-  nextRole,
+  upcomingRoles,
 } from '@/lib/staff-queries';
-import { NO_ROLE } from '@/types';
-import { formatDeadlineJst } from '@/lib/datetime';
+import { NO_ROLE, SLOT_TYPE_LABEL } from '@/types';
+import { formatDeadlineJst, formatDateJa, formatTimeRange } from '@/lib/datetime';
 import { isCoreMember } from '@/lib/scope';
 import { fetchUpcomingAbsences } from '@/lib/absence-server';
-
-function hm(t: string) {
-  return t.slice(0, 5);
-}
 
 // スタッフのホーム。リンクを並べるだけの画面をやめ、
 // 「今なにをすればいいか」（次のシフト・未提出・新着）が一目で分かるサマリーにしている。
@@ -28,7 +24,8 @@ export default async function Dashboard() {
     // ホームは他の情報も出すので、アンケートの取得失敗だけで画面を壊さない
     fetchVisibleSurveys(auth.userId, 2).catch(() => []),
   ]);
-  const next = nextRole(roles);
+  // 次のシフトは直近 3 件まで（1件だけだと2件目以降を見にシフト画面へ行く必要があった）
+  const nextRoles = upcomingRoles(roles, 3);
 
   // 欠席連絡の一覧はコアメンバーだけに見せる。取得に失敗してもホームは壊さない（件数を出さないだけ）
   const isCore = await isCoreMember(auth.userId);
@@ -41,8 +38,8 @@ export default async function Dashboard() {
 
   return (
     <div className="flex flex-col gap-4">
-      {/* 未提出のシフト希望（あるときだけ目立たせる） */}
-      {pending.length > 0 ? (
+      {/* 未提出のシフト希望。あるときだけ一番上に目立たせる（無い日は予定を一番上に） */}
+      {pending.length > 0 && (
         <section className="rounded border border-amber-300 bg-amber-50 p-4">
           <h2 className="font-bold text-amber-900">
             未提出のシフト希望が {pending.length} 件あります
@@ -50,30 +47,20 @@ export default async function Dashboard() {
           <ul className="mt-2 flex flex-col gap-1 text-sm text-amber-900">
             {pending.slice(0, 3).map((s) => (
               <li key={s.id}>
-                {s.date}（{s.slot_type === 'day' ? '当日' : '研修'}）
-                {hm(s.start_time)}〜{hm(s.end_time)}
+                {formatDateJa(s.date)} {formatTimeRange(s.start_time, s.end_time)}・
+                {SLOT_TYPE_LABEL[s.slot_type]}
                 {s.title && <span className="ml-1 font-bold">{s.title}</span>}
-                <span className="ml-1 text-xs">
-                  期限 {formatDeadlineJst(s.deadline)}
-                </span>
+                <span className="ml-1 text-xs">期限 {formatDeadlineJst(s.deadline)}</span>
               </li>
             ))}
-            {pending.length > 3 && (
-              <li className="text-xs">ほか {pending.length - 3} 件</li>
-            )}
+            {pending.length > 3 && <li className="text-xs">ほか {pending.length - 3} 件</li>}
           </ul>
           <Link
             href="/dashboard/shifts"
-            className="mt-3 inline-block rounded bg-accent px-4 py-2 text-sm text-white"
+            className="press mt-3 inline-block rounded bg-accent px-4 py-2 text-sm text-white"
           >
             希望を出す
           </Link>
-        </section>
-      ) : (
-        <section className="rounded border bg-white p-4">
-          <p className="text-sm text-gray-600">
-            未提出のシフト希望はありません ✓
-          </p>
         </section>
       )}
 
@@ -81,7 +68,7 @@ export default async function Dashboard() {
       {isCore && (
         <Link
           href="/dashboard/absences"
-          className={`rounded border p-4 ${
+          className={`press rounded border p-4 ${
             absenceCount ? 'border-red-300 bg-red-50 text-red-900' : 'bg-white'
           }`}
         >
@@ -96,57 +83,59 @@ export default async function Dashboard() {
         </Link>
       )}
 
-      {/* 次のシフト */}
+      {/* 次のシフト（直近3件） */}
       <section className="rounded border bg-white p-4">
         <h2 className="font-bold">次のシフト</h2>
-        {next ? (
-          <div className="mt-2">
-            <p className="text-lg font-bold">
-              {next.date}（{next.slot_type === 'day' ? '当日' : '研修'}）
-            </p>
-            {next.title && <p className="font-bold">{next.title}</p>}
-            <p className="text-sm text-gray-600">
-              {hm(next.start_time)}〜{hm(next.end_time)}
-            </p>
-            <p className="mt-1 text-sm">
-              {next.role === NO_ROLE ? (
-                <>
-                  <span className="font-bold">出勤</span>
-                  <span className="text-gray-500">（役割の指定なし）</span>
-                </>
-              ) : (
-                <>
-                  役割: <span className="font-bold">{next.role}</span>
-                </>
-              )}
-            </p>
-            <Link
-              href="/dashboard/shifts?view=roles"
-              className="mt-2 inline-block text-sm text-gray-500 underline"
-            >
-              確定した役割をすべて見る
-            </Link>
-          </div>
+        {nextRoles.length === 0 ? (
+          <p className="mt-2 text-sm text-gray-500">確定した予定はまだありません。</p>
         ) : (
-          <p className="mt-2 text-sm text-gray-500">
-            確定した予定はまだありません。
-          </p>
+          <ul className="mt-2 flex flex-col divide-y">
+            {nextRoles.map((r, i) => (
+              <li key={r.slot_id} className="py-2 first:pt-0 last:pb-0">
+                <p className={i === 0 ? 'text-lg font-bold' : 'font-bold'}>
+                  {formatDateJa(r.date)}
+                  <span className="ml-1 text-sm font-normal text-gray-600">
+                    {formatTimeRange(r.start_time, r.end_time)}・{SLOT_TYPE_LABEL[r.slot_type]}
+                  </span>
+                </p>
+                {r.title && <p className="font-bold">{r.title}</p>}
+                <p className="text-sm">
+                  {r.role === NO_ROLE ? (
+                    <>
+                      <span className="font-bold">出勤</span>
+                      <span className="text-gray-500">（役割の指定なし）</span>
+                    </>
+                  ) : (
+                    <>
+                      役割: <span className="font-bold">{r.role}</span>
+                    </>
+                  )}
+                </p>
+              </li>
+            ))}
+          </ul>
         )}
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t pt-3 text-sm">
+          <Link href="/dashboard/shifts?view=roles" className="text-gray-600 underline">
+            確定した役割をすべて見る
+          </Link>
+          {pending.length === 0 && (
+            <span className="text-xs text-gray-500">未提出のシフト希望はありません ✓</span>
+          )}
+        </div>
       </section>
 
-      {/* 新着のアンケート結果 */}
+      {/* 新着のアンケート結果。押すとその結果を開いた状態で一覧へ */}
       <section className="rounded border bg-white p-4">
         <h2 className="font-bold">アンケート結果</h2>
         {surveys.length === 0 ? (
-          <p className="mt-2 text-sm text-gray-500">
-            公開されている結果はまだありません。
-          </p>
+          <p className="mt-2 text-sm text-gray-500">公開されている結果はまだありません。</p>
         ) : (
           <ul className="mt-2 flex flex-col gap-1">
             {surveys.map((s) => (
               <li key={s.id} className="text-sm">
-                <span className="text-gray-500">{s.date}</span>{' '}
-                <Link href="/dashboard/surveys" className="underline">
+                <span className="text-gray-500">{formatDateJa(s.date)}</span>{' '}
+                <Link href={`/dashboard/surveys?open=${s.id}`} className="underline">
                   {s.title}
                 </Link>
               </li>
@@ -155,21 +144,17 @@ export default async function Dashboard() {
         )}
       </section>
 
-      {/* そのほかの入口。下部タブは5つ（ホーム＋4）で打ち止めなので、増える導線はここに置く */}
-      <div className="grid grid-cols-2 gap-2 text-center text-sm">
-        <Link href="/dashboard/products" className="rounded border bg-white p-3">
-          商品
-        </Link>
-        <Link href="/dashboard/suggestions" className="rounded border bg-white p-3">
-          目安箱
-        </Link>
-        <Link href="/dashboard/links" className="rounded border bg-white p-3">
-          リンク集
-        </Link>
-        <Link href="/dashboard/settings" className="rounded border bg-white p-3">
-          設定
-        </Link>
-      </div>
+      {/*
+        下部タブ・ヘッダーに無い入口だけを置く（2026-11-24。商品・目安箱は下部タブ、
+        設定はヘッダーの歯車と重複していたので外した）。増える導線はここに足す。
+      */}
+      <Link
+        href="/dashboard/links"
+        className="press flex items-center justify-between rounded border bg-white p-4"
+      >
+        <span className="font-bold">リンク集</span>
+        <span className="text-sm text-gray-500">大学・生協のサイト、当日の資料 ›</span>
+      </Link>
     </div>
   );
 }

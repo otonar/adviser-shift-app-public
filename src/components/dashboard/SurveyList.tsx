@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import type { SurveyAnswerType } from '@/types';
 import type { SurveySummary } from '@/lib/staff-queries';
 import SurveyTrend, { type HistoryPoint } from '@/components/ui/SurveyTrend';
+import { formatDateJa } from '@/lib/datetime';
 
 type Item = {
   question: {
@@ -19,8 +20,16 @@ type Item = {
 
 // 公開済みアンケート結果の一覧。一覧そのものはサーバーから受け取り、
 // 開閉と「開いたものだけ詳細を取りに行く」動きのためにクライアント側に置いている。
-export default function SurveyList({ surveys }: { surveys: SurveySummary[] }) {
-  const [openId, setOpenId] = useState<string | null>(null);
+export default function SurveyList({
+  surveys,
+  initialOpenId = null,
+}: {
+  surveys: SurveySummary[];
+  initialOpenId?: string | null;
+}) {
+  const [openId, setOpenId] = useState<string | null>(
+    initialOpenId && surveys.some((s) => s.id === initialOpenId) ? initialOpenId : null
+  );
 
   if (surveys.length === 0) {
     return (
@@ -38,7 +47,7 @@ export default function SurveyList({ surveys }: { surveys: SurveySummary[] }) {
             className="w-full text-left"
           >
             <div className="flex flex-wrap items-center gap-2 text-xs">
-              <span className="text-gray-500">{s.date}</span>
+              <span className="text-gray-500">{formatDateJa(s.date)}</span>
               {s.respondent_count !== null && (
                 <span className="text-gray-500">回答 {s.respondent_count} 件</span>
               )}

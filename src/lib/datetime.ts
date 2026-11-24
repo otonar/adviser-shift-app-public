@@ -87,6 +87,34 @@ export function formatDeadlineJst(deadline: string): string {
 }
 
 /**
+ * 日時（ISO 文字列）を JST で「M/D(曜) HH:MM」に整形する（投稿日時・連絡日時などの表示用）。
+ * 画面ごとに Intl を書いていたのをここに集めた。中身は提出期限の表示と同じ。
+ */
+export function formatDateTimeJst(iso: string): string {
+  return formatDeadlineJst(iso);
+}
+
+const WEEKDAYS_JA = ['日', '月', '火', '水', '木', '金', '土'];
+
+/**
+ * 'YYYY-MM-DD' を画面用に「M/D(曜)」へ。今年（JST）でなければ先頭に年を付ける（「2027/4/5(月)」）。
+ * 全画面の日付表示はこれに揃える（2026-11-24。それまでは画面ごとに YYYY-MM-DD のまま／M/D(曜) が混在）。
+ */
+export function formatDateJa(date: string, today: string = todayJst()): string {
+  const [y, m, d] = date.split('-').map(Number);
+  const wd = WEEKDAYS_JA[new Date(Date.UTC(y, m - 1, d)).getUTCDay()];
+  const md = `${m}/${d}(${wd})`;
+  return String(y) === today.slice(0, 4) ? md : `${y}/${md}`;
+}
+
+/**
+ * 'HH:MM[:SS]' 2つを「HH:MM〜HH:MM」に。
+ */
+export function formatTimeRange(start: string, end: string): string {
+  return `${start.slice(0, 5)}〜${end.slice(0, 5)}`;
+}
+
+/**
  * 期限切れかどうか（サーバー現在時刻基準）。
  */
 export function isExpired(deadline: string): boolean {

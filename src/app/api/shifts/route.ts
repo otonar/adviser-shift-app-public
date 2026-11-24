@@ -2,7 +2,13 @@ import { getSupabaseAdmin } from '@/lib/supabase';
 import { authenticateUser, authenticateAdmin } from '@/lib/middleware';
 import { createShiftSchema } from '@/lib/validators';
 import { rolesForSlotType } from '@/lib/role-assignment';
-import { computeDeadline, deadlineFromDate, isExpired, compareSlotsUpcomingFirst } from '@/lib/datetime';
+import {
+  computeDeadline,
+  deadlineFromDate,
+  isExpired,
+  compareSlotsUpcomingFirst,
+  todayJst,
+} from '@/lib/datetime';
 import { absenceWindow, isAbsenceEligible } from '@/lib/absence';
 import { jsonError, jsonOk, parseBody, verifyOrigin, forbiddenOrigin, withRoute } from '@/lib/http';
 
@@ -22,9 +28,51 @@ async function getHandler(req: Request) {
         .select('*')
         .order('date', { ascending: true });
       if (error) return jsonError('取得に失敗しました', 500, 'FETCH_FAILED');
-      // 締切済みかどうかはサーバの時刻で判定して返す（一覧に出すため）
+      const slots = data ?? [];
+
+      // 一覧に出す提出の進み具合（対象者数・提出数・○の数）。今日以降の枠だけ数える
+      // （終わった枠は要らない＝読む行数を増やさない。Supabase は1回に返す行数に上限がある）。
+      const today = todayJst();
+      const activeIds = slots.filter((s) => s.date >= today).map((s) => s.id as string);
+      const progress = new Map<string, { targets: number; submitted: number; available: number }>();
+      if (activeIds.length > 0) {
+        const [{ data: tRows }, { data: sRows }] = await Promise.all([
+          supabase.from('shift_target_users').select('shift_slot_id, user_id').in('shift_slot_id', activeIds),
+          supabase
+            .from('shift_submissions')
+            .select('shift_slot_id, user_id, available')
+            .in('shift_slot_id', activeIds),
+        ]);
+        const targetKeys = new Set<string>();
+        for (const t of tRows ?? []) {
+          const id = t.shift_slot_id as string;
+          targetKeys.add(`${id}:${t.user_id}`);
+          const p = progress.get(id) ?? { targets: 0, submitted: 0, available: 0 };
+          p.targets++;
+          progress.set(id, p);
+        }
+        for (const s of sRows ?? []) {
+          const id = s.shift_slot_id as string;
+          // 対象から外した人の提出は数えない（枠詳細の提出状況と同じ数になるように）
+          if (!targetKeys.has(`${id}:${s.user_id}`)) continue;
+          const p = progress.get(id);
+          if (!p) continue;
+          p.submitted++;
+          if (s.available) p.available++;
+        }
+      }
+
+      // 締切済みかどうかはサーバの時刻で判定して返す（一覧に出すため）。
+      // 並びはスタッフ側と同じ「今日以降を近い順 → 終わった枠」（以前は日付の古い順で、
+      // 終わった枠が上に溜まっていた。2026-11-24 UI 見直し M1）。
       return jsonOk({
-        slots: (data ?? []).map((slot) => ({ ...slot, expired: isExpired(slot.deadline) })),
+        slots: slots
+          .map((slot) => ({
+            ...slot,
+            expired: isExpired(slot.deadline),
+            progress: progress.get(slot.id as string) ?? null,
+          }))
+          .sort((a, b) => compareSlotsUpcomingFirst(a, b, today)),
       });
     }
   }

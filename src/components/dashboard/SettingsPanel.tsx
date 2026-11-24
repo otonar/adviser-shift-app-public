@@ -4,6 +4,8 @@ import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import LogoutButton from '@/components/auth/LogoutButton';
 import { THEMES, DEFAULT_THEME, isThemeId, type ThemeId } from '@/lib/themes';
+import { useFlash, FlashMessage } from '@/components/ui/Flash';
+import CardSkeleton from '@/components/ui/CardSkeleton';
 
 type Me = {
   id: string;
@@ -81,25 +83,38 @@ export default function SettingsPanel({
     })();
   }, [load]);
 
-  if (loading) return <p className="text-sm text-gray-500">読み込み中…</p>;
+  if (loading) return <CardSkeleton count={4} />;
   if (loadError) return <p className="text-sm text-red-600">{loadError}</p>;
   if (!me) return null;
 
+  const line = (
+    <LineSection
+      linked={me.line_linked}
+      liffId={liffId}
+      addFriendUrl={addFriendUrl}
+      onChanged={load}
+    />
+  );
+
   return (
     <div className="flex flex-col gap-6">
-      <NameSection initialName={me.name} onSaved={load} />
+      {/* 未連携のうちは LINE 連携を一番上に（通知が届くかどうかに直結するため）。連携済みなら下へ */}
+      {!me.line_linked && line}
+      <NameSection
+        initialName={me.name}
+        onSaved={() => {
+          void load();
+          // ヘッダーの「〇〇 さん」も新しい名前にする
+          router.refresh();
+        }}
+      />
       <ThemeSection
         initialTheme={isThemeId(me.theme) ? me.theme : DEFAULT_THEME}
         onSaved={() => router.refresh()}
       />
       <PasswordSection />
       <RolesInfo dayRoles={me.day_roles} trainingRoles={me.training_roles} />
-      <LineSection
-        linked={me.line_linked}
-        liffId={liffId}
-        addFriendUrl={addFriendUrl}
-        onChanged={load}
-      />
+      {me.line_linked && line}
       <Section title="ログアウト">
         <p className="mb-3 text-sm text-gray-600">
           この端末からログアウトします。次に使うときは名前とパスワードでログインしてください。
@@ -140,25 +155,26 @@ function NameSection({
 }) {
   const [name, setName] = useState(initialName);
   const [saving, setSaving] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
+  const { message, flash } = useFlash();
   const [error, setError] = useState<string | null>(null);
+  // 変えたときだけ押せる（変えていないのに押せると、押して何が起きたのか分からない）
+  const dirty = name.trim() !== '' && name.trim() !== initialName;
 
   async function save() {
     setSaving(true);
-    setMsg(null);
     setError(null);
     try {
       const res = await fetch('/api/users/me', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({ name: name.trim() }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         setError(data.error ?? '保存に失敗しました');
         return;
       }
-      setMsg('保存しました');
+      flash('保存しました');
       onSaved();
     } catch {
       setError('通信エラーが発生しました');
@@ -178,14 +194,14 @@ function NameSection({
         />
         <button
           type="button"
-          disabled={saving}
+          disabled={saving || !dirty}
           onClick={save}
           className="rounded border bg-accent px-4 py-2 text-sm text-white disabled:opacity-50"
         >
-          保存
+          {saving ? '保存中…' : '保存'}
         </button>
       </div>
-      {msg && <p className="mt-2 text-sm text-green-600">{msg}</p>}
+      <FlashMessage message={message} className="mt-2" />
       {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
     </Section>
   );
@@ -280,11 +296,10 @@ function PasswordSection() {
   const [next, setNext] = useState('');
   const [confirm, setConfirm] = useState('');
   const [saving, setSaving] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
+  const { message, flash } = useFlash();
   const [error, setError] = useState<string | null>(null);
 
   async function save() {
-    setMsg(null);
     setError(null);
     if (next.length < 8) {
       setError('新しいパスワードは8文字以上にしてください');
@@ -306,7 +321,7 @@ function PasswordSection() {
         setError(data.error ?? '変更に失敗しました');
         return;
       }
-      setMsg('パスワードを変更しました');
+      flash('パスワードを変更しました');
       setCurrent('');
       setNext('');
       setConfirm('');
@@ -353,7 +368,7 @@ function PasswordSection() {
           {saving ? '変更中…' : 'パスワードを変更'}
         </button>
       </div>
-      {msg && <p className="mt-2 text-sm text-green-600">{msg}</p>}
+      <FlashMessage message={message} className="mt-2" />
       {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
     </Section>
   );
@@ -520,6 +535,8 @@ function LineSection({
   }
 
   async function unlink() {
+    // 1タップで通知が止まらないよう確認する
+    if (!window.confirm('LINE 連携を解除しますか？シフト確定などの通知が LINE に届かなくなります。')) return;
     setBusy(true);
     setError(null);
     try {

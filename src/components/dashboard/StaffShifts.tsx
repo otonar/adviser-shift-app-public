@@ -1,9 +1,16 @@
 'use client';
 
-import { useEffect, useState, useCallback, useMemo } from 'react';
-import { NO_ROLE } from '@/types';
-import { formatDeadlineJst } from '@/lib/datetime';
+import { useEffect, useState, useCallback, useRef } from 'react';
+import { NO_ROLE, SLOT_TYPE_LABEL } from '@/types';
+import {
+  formatDeadlineJst,
+  formatDateJa,
+  formatTimeRange,
+  todayJst,
+} from '@/lib/datetime';
 import { ABSENCE_REASON_MAX } from '@/lib/absence';
+import { useFlash, FlashMessage } from '@/components/ui/Flash';
+import CardSkeleton from '@/components/ui/CardSkeleton';
 
 type Slot = {
   id: string;
@@ -25,6 +32,7 @@ type Slot = {
 
 // 確定した役割（published のみ・サーバー側で取得して渡される）
 export type MyRole = {
+  slot_id: string;
   role: string;
   date: string;
   start_time: string;
@@ -33,122 +41,202 @@ export type MyRole = {
   title: string | null;
 };
 
-function hm(t: string) {
-  return t.slice(0, 5);
+type View = 'submit' | 'roles';
+
+// 枠の見出し（日付・種別・タイトル・時間）。提出・期限切れ・確定した役割で同じ書き方にする。
+function SlotHeading({
+  slot,
+}: {
+  slot: Pick<Slot, 'date' | 'slot_type' | 'start_time' | 'end_time'> & { title?: string | null };
+}) {
+  return (
+    <div className="min-w-0">
+      <p className="font-bold">
+        {formatDateJa(slot.date)}
+        <span className="ml-1 text-sm font-normal text-gray-600">
+          {formatTimeRange(slot.start_time, slot.end_time)}・{SLOT_TYPE_LABEL[slot.slot_type]}
+        </span>
+      </p>
+      {slot.title && <p className="font-bold">{slot.title}</p>}
+    </div>
+  );
 }
 
-function ShiftCard({ slot, onSaved }: { slot: Slot; onSaved: () => void }) {
-  const [note, setNote] = useState(slot.submission?.note ?? '');
-  const [saving, setSaving] = useState(false);
-  const [justSaved, setJustSaved] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const current = slot.submission?.available ?? null;
+// ○ / × の2択ボタン。押した瞬間に保存する（「1件ずつ」と「まとめて」で保存の仕方が
+// 違っていたのをやめ、どこで押しても即保存に揃えた。2026-11-24）。
+function AnswerButtons({
+  current,
+  onChoose,
+}: {
+  current: boolean | null;
+  onChoose: (available: boolean) => void;
+}) {
+  return (
+    <div className="flex gap-2">
+      {([true, false] as const).map((value) => {
+        const selected = current === value;
+        const on = value
+          ? 'border-green-700 bg-green-600 font-bold text-white'
+          : 'border-red-700 bg-red-600 font-bold text-white';
+        return (
+          <button
+            key={String(value)}
+            type="button"
+            aria-pressed={selected}
+            onClick={() => onChoose(value)}
+            className={`flex-1 rounded border py-2.5 text-sm ${
+              selected ? on : 'bg-white text-gray-600'
+            }`}
+          >
+            {value ? '○ 出られる' : '× 出られない'}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
-  async function submit(available: boolean) {
-    setSaving(true);
-    setError(null);
-    setJustSaved(false);
-    try {
-      const res = await fetch(`/api/shifts/${slot.id}/submissions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ available, note: note || undefined }),
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        setError(data.error ?? '保存に失敗しました');
-        return;
+// 期限内の枠のカード。○×も備考も、それだけで保存できる。
+// 以前は備考を後から書いたとき、○×をもう一度押さないと保存されなかった（本人指摘 2026-11-24）。
+// 今は、回答済みなら備考は「入力欄から離れたとき」か「備考を保存」で保存される。
+// 未回答なら ○× を押したときに備考も一緒に送る。
+function ShiftCard({
+  slot,
+  highlight,
+  onSaved,
+}: {
+  slot: Slot;
+  highlight: boolean;
+  onSaved: () => void;
+}) {
+  const savedNote = slot.submission?.note ?? '';
+  const [note, setNote] = useState(savedNote);
+  // 押した直後から選択状態を見せる（サーバーの応答を待たない）。失敗したら戻す。
+  const [current, setCurrent] = useState<boolean | null>(slot.submission?.available ?? null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const { message, flash } = useFlash();
+  // 保存は順番に1つずつ送る（備考の入力欄から離れた直後に ○× を押すと2回送ることになるため。
+  // ボタンは押せないようにしない＝押したのに効かない、を避ける）。
+  const queue = useRef<Promise<void>>(Promise.resolve());
+
+  // 再読み込みで提出内容が変わったら合わせる（レンダー中に派生 state を更新する React 推奨パターン）
+  const [prevSubmission, setPrevSubmission] = useState(slot.submission);
+  if (slot.submission !== prevSubmission) {
+    setPrevSubmission(slot.submission);
+    setCurrent(slot.submission?.available ?? null);
+  }
+
+  const noteDirty = note.trim() !== savedNote.trim();
+
+  function send(available: boolean, kind: 'answer' | 'note') {
+    const prev = current;
+    setCurrent(available);
+    const body = JSON.stringify({ available, note: note.trim() || undefined });
+    queue.current = queue.current.then(async () => {
+      setSaving(true);
+      setError(null);
+      try {
+        const res = await fetch(`/api/shifts/${slot.id}/submissions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body,
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          setError(data.error ?? '保存に失敗しました');
+          setCurrent(prev);
+          return;
+        }
+        flash(kind === 'note' ? '備考を保存しました' : '保存しました');
+        onSaved();
+      } catch {
+        setError('通信エラーが発生しました');
+        setCurrent(prev);
+      } finally {
+        setSaving(false);
       }
-      setJustSaved(true);
-      setTimeout(() => setJustSaved(false), 2500);
-      onSaved();
-    } catch {
-      setError('通信エラーが発生しました');
-    } finally {
-      setSaving(false);
-    }
+    });
+  }
+
+  function saveNoteIfNeeded() {
+    if (current !== null && noteDirty) send(current, 'note');
   }
 
   return (
     <div
       className={`rounded border bg-white p-4 ${
-        slot.expired && !slot.can_report_absence && !slot.absence ? 'opacity-60' : ''
+        highlight && current === null ? 'border-l-4 border-l-amber-400' : ''
       }`}
     >
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="font-bold">
-            {slot.date}（{slot.slot_type === 'day' ? '当日' : '研修'}）
-          </p>
-          {slot.title && <p className="font-bold">{slot.title}</p>}
-          <p className="text-sm text-gray-600">
-            {hm(slot.start_time)}〜{hm(slot.end_time)}
-          </p>
-          <p className="text-xs text-gray-500">
-            提出期限 {formatDeadlineJst(slot.deadline)} まで
-          </p>
-        </div>
-        <span
-          className={`rounded px-2 py-1 text-sm font-bold ${
-            current === null
-              ? 'bg-gray-100 text-gray-500'
-              : current
-                ? 'bg-green-100 text-green-800'
-                : 'bg-red-100 text-red-800'
-          }`}
-        >
-          {current === null ? '未回答' : current ? '○ 出られる' : '× 出られない'}
-        </span>
+      <div className="flex items-start justify-between gap-2">
+        <SlotHeading slot={slot} />
+        {current === null && (
+          <span className="shrink-0 rounded bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-800">
+            未回答
+          </span>
+        )}
       </div>
+      <p className="text-xs text-gray-500">提出期限 {formatDeadlineJst(slot.deadline)} まで</p>
       {slot.note && <p className="mt-1 text-sm text-gray-500">{slot.note}</p>}
 
-      {slot.expired ? (
-        <>
-          <p className="mt-3 text-sm text-gray-500">提出期限が過ぎています</p>
-          <AbsenceBox slot={slot} onSaved={onSaved} />
-        </>
-      ) : (
-        <div className="mt-3 flex flex-col gap-2">
+      <div className="mt-3 flex flex-col gap-2">
+        <AnswerButtons current={current} onChoose={(v) => send(v, 'answer')} />
+        <div className="flex gap-2">
           <input
             type="text"
             value={note}
             onChange={(e) => setNote(e.target.value)}
+            onBlur={saveNoteIfNeeded}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+            }}
+            maxLength={500}
             placeholder="備考（任意）"
-            className="rounded border px-3 py-2 text-sm"
+            aria-label="備考"
+            className="min-w-0 flex-1 rounded border px-3 py-2 text-sm"
           />
-          <div className="flex gap-2">
+          {current !== null && noteDirty && (
             <button
               type="button"
-              disabled={saving}
-              onClick={() => submit(true)}
-              className={`flex-1 rounded border py-2 text-sm disabled:opacity-50 ${
-                current === true
-                  ? 'border-green-700 bg-green-600 font-bold text-white'
-                  : 'bg-white text-gray-500'
-              }`}
+              onClick={saveNoteIfNeeded}
+              className="shrink-0 rounded bg-accent px-3 py-2 text-sm text-white"
             >
-              ○ 出られる
+              備考を保存
             </button>
-            <button
-              type="button"
-              disabled={saving}
-              onClick={() => submit(false)}
-              className={`flex-1 rounded border py-2 text-sm disabled:opacity-50 ${
-                current === false
-                  ? 'border-red-700 bg-red-600 font-bold text-white'
-                  : 'bg-white text-gray-500'
-              }`}
-            >
-              × 出られない
-            </button>
-          </div>
-          {saving && <p className="text-sm text-gray-500">保存中…</p>}
-          {justSaved && !saving && (
-            <p className="text-sm font-bold text-green-600">保存しました ✓</p>
           )}
-          {error && <p className="text-sm text-red-600">{error}</p>}
         </div>
-      )}
+        {current === null && noteDirty && (
+          <p className="text-xs text-gray-500">○ か × を押すと、備考も一緒に送られます。</p>
+        )}
+        {saving && <p className="text-sm text-gray-500">保存中…</p>}
+        {!saving && <FlashMessage message={message} />}
+        {error && <p className="text-sm text-red-600">{error}</p>}
+      </div>
+    </div>
+  );
+}
+
+// 期限切れの枠（確定した役割に入っていないもの）。回答の確認と、出せる場合は欠席連絡。
+function ExpiredCard({ slot, onSaved }: { slot: Slot; onSaved: () => void }) {
+  const a = slot.submission?.available;
+  return (
+    <div className="rounded border bg-white p-4">
+      <SlotHeading slot={slot} />
+      <p className="mt-1 text-sm text-gray-600">
+        あなたの回答:{' '}
+        {a === undefined ? (
+          <span className="text-gray-400">未回答</span>
+        ) : a ? (
+          <span className="font-bold text-green-700">○ 出られる</span>
+        ) : (
+          <span className="font-bold text-red-700">× 出られない</span>
+        )}
+        {slot.submission?.note && (
+          <span className="ml-1 text-gray-500">（{slot.submission.note}）</span>
+        )}
+      </p>
+      <AbsenceBox slot={slot} onSaved={onSaved} />
     </div>
   );
 }
@@ -156,6 +244,7 @@ function ShiftCard({ slot, onSaved }: { slot: Slot; onSaved: () => void }) {
 // 提出期限後の欠席連絡。期限後〜開始時刻前に、○で提出した人・確定済みの割り振りに
 // 入っている人だけが出せる（判定はサーバー。ここは返ってきたフラグで出し分けるだけ）。
 // 連絡はコアメンバー全員に LINE で届く。
+// 確定した役割があるときはその役割のカードに、無いときは期限切れの枠のカードに出す。
 function AbsenceBox({ slot, onSaved }: { slot: Slot; onSaved: () => void }) {
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState('');
@@ -179,6 +268,7 @@ function AbsenceBox({ slot, onSaved }: { slot: Slot; onSaved: () => void }) {
         return;
       }
       const done = method === 'POST' ? '欠席を連絡しました' : '欠席連絡を取り消しました';
+      // 誰に届いたかは後から確かめたいことなので、自動では消さない
       setMessage(
         data.notified > 0
           ? `${done}。コアメンバー ${data.notified} 人に LINE で知らせました。`
@@ -196,7 +286,7 @@ function AbsenceBox({ slot, onSaved }: { slot: Slot; onSaved: () => void }) {
 
   const feedback = (
     <>
-      {message && <p className="mt-2 text-sm font-bold text-green-600">{message}</p>}
+      {message && <p className="mt-2 text-sm font-bold text-green-700">{message}</p>}
       {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
     </>
   );
@@ -215,7 +305,7 @@ function AbsenceBox({ slot, onSaved }: { slot: Slot; onSaved: () => void }) {
                 void send('DELETE');
               }
             }}
-            className="mt-2 rounded border bg-white px-3 py-1 text-sm disabled:opacity-50"
+            className="mt-2 rounded border bg-white px-3 py-1.5 text-sm disabled:opacity-50"
           >
             {saving ? '送信中…' : '取り消す（出勤できるようになった）'}
           </button>
@@ -233,7 +323,7 @@ function AbsenceBox({ slot, onSaved }: { slot: Slot; onSaved: () => void }) {
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="mt-2 rounded border border-red-300 bg-white px-3 py-1 text-sm text-red-700"
+          className="mt-2 rounded border border-red-300 bg-white px-3 py-1.5 text-sm text-red-700"
         >
           欠席を連絡する
         </button>
@@ -281,62 +371,29 @@ function AbsenceBox({ slot, onSaved }: { slot: Slot; onSaved: () => void }) {
   );
 }
 
-function hmRange(slot: Slot) {
-  return `${hm(slot.start_time)}〜${hm(slot.end_time)}`;
-}
-
-// まとめて提出モード: 期限内の枠を一覧し、各行で ○/× を選んで1回で保存する。
-function BulkSubmit({ slots, onSaved }: { slots: Slot[]; onSaved: () => void }) {
-  // 期限内の枠だけ対象（期限切れは編集不可）
-  const openSlots = useMemo(() => slots.filter((s) => !s.expired), [slots]);
-
-  const [choices, setChoices] = useState<Record<string, boolean | null>>(() =>
-    Object.fromEntries(openSlots.map((s) => [s.id, s.submission?.available ?? null]))
-  );
+// 未回答の枠をまとめて ○ / × にする。押した瞬間に保存（答えてある枠は変えない）。
+function BulkAnswer({ slots, onSaved }: { slots: Slot[]; onSaved: () => void }) {
   const [saving, setSaving] = useState(false);
-  const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const { message, flash } = useFlash();
 
-  // openSlots が変わったら（再読込・onSaved 後）現在の提出状況で choices を作り直す。
-  // 派生 state の更新は effect ではなくレンダー中に行う（React 推奨パターン）。
-  const [prevOpenSlots, setPrevOpenSlots] = useState(openSlots);
-  if (openSlots !== prevOpenSlots) {
-    setPrevOpenSlots(openSlots);
-    setChoices(
-      Object.fromEntries(openSlots.map((s) => [s.id, s.submission?.available ?? null]))
-    );
-  }
-
-  function setAll(value: boolean) {
-    setChoices(Object.fromEntries(openSlots.map((s) => [s.id, value])));
-  }
-
-  async function save() {
-    const items = openSlots
-      .filter((s) => choices[s.id] !== null && choices[s.id] !== undefined)
-      .map((s) => ({ shift_slot_id: s.id, available: choices[s.id] as boolean }));
-    if (items.length === 0) {
-      setError('○か×を選んでください');
-      return;
-    }
+  async function answerAll(available: boolean) {
     setSaving(true);
     setError(null);
-    setResult(null);
     try {
       const res = await fetch('/api/shifts/submissions/bulk', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items }),
+        body: JSON.stringify({
+          items: slots.map((s) => ({ shift_slot_id: s.id, available })),
+        }),
       });
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
         setError(data.error ?? '保存に失敗しました');
         return;
       }
-      const data = await res.json();
-      setResult(
-        `${data.saved}件 保存しました ✓${data.skipped ? `（${data.skipped}件はスキップ）` : ''}`
-      );
+      flash(`${data.saved}件を${available ? '○' : '×'}で保存しました`);
       onSaved();
     } catch {
       setError('通信エラーが発生しました');
@@ -345,148 +402,149 @@ function BulkSubmit({ slots, onSaved }: { slots: Slot[]; onSaved: () => void }) 
     }
   }
 
-  if (openSlots.length === 0) {
-    return <p className="text-sm text-gray-500">提出できる（期限内の）シフトはありません。</p>;
-  }
-
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex items-center gap-2">
-        <span className="text-sm text-gray-500">一括設定:</span>
+    <div className="rounded border border-amber-300 bg-amber-50 p-3">
+      <p className="text-sm text-amber-900">
+        未回答の {slots.length} 件をまとめて答える
+      </p>
+      <div className="mt-2 flex gap-2">
         <button
           type="button"
-          onClick={() => setAll(true)}
-          className="rounded border px-3 py-1 text-sm"
+          disabled={saving}
+          onClick={() => void answerAll(true)}
+          className="flex-1 rounded border bg-white py-2 text-sm disabled:opacity-50"
         >
-          全部○
+          全部 ○
         </button>
         <button
           type="button"
-          onClick={() => setAll(false)}
-          className="rounded border px-3 py-1 text-sm"
+          disabled={saving}
+          onClick={() => void answerAll(false)}
+          className="flex-1 rounded border bg-white py-2 text-sm disabled:opacity-50"
         >
-          全部×
+          全部 ×
         </button>
       </div>
-
-      <div className="divide-y rounded border bg-white">
-        {openSlots.map((slot) => {
-          const choice = choices[slot.id] ?? null;
-          return (
-            <div
-              key={slot.id}
-              className="flex items-center justify-between gap-2 px-3 py-2"
-            >
-              <div className="text-sm">
-                <span className="font-bold">{slot.date}</span>（
-                {slot.slot_type === 'day' ? '当日' : '研修'}）{' '}
-                <span className="text-gray-600">{hmRange(slot)}</span>
-                {slot.title && <span className="ml-1">{slot.title}</span>}
-                {choice === null && (
-                  <span className="ml-1 text-xs text-gray-400">（未回答）</span>
-                )}
-                <span className="block text-xs text-gray-500">
-                  提出期限 {formatDeadlineJst(slot.deadline)} まで
-                </span>
-              </div>
-              <div className="flex gap-1">
-                <button
-                  type="button"
-                  onClick={() =>
-                    setChoices((c) => ({ ...c, [slot.id]: true }))
-                  }
-                  className={`rounded border px-3 py-1 text-sm ${
-                    choice === true
-                      ? 'border-green-700 bg-green-600 font-bold text-white'
-                      : 'bg-white text-gray-500'
-                  }`}
-                >
-                  ○
-                </button>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setChoices((c) => ({ ...c, [slot.id]: false }))
-                  }
-                  className={`rounded border px-3 py-1 text-sm ${
-                    choice === false
-                      ? 'border-red-700 bg-red-600 font-bold text-white'
-                      : 'bg-white text-gray-500'
-                  }`}
-                >
-                  ×
-                </button>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      <button
-        type="button"
-        disabled={saving}
-        onClick={save}
-        className="rounded bg-accent py-2 text-sm text-white disabled:opacity-50"
-      >
-        {saving ? '保存中…' : 'まとめて保存'}
-      </button>
-      {result && <p className="text-sm font-bold text-green-600">{result}</p>}
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {saving && <p className="mt-2 text-sm text-gray-500">保存中…</p>}
+      <FlashMessage message={message} className="mt-2" />
+      {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
     </div>
   );
 }
 
-// 確定した役割の一覧（旧 /dashboard/my-roles）。データはサーバー側で取得済み。
-function MyRoles({ roles }: { roles: MyRole[] }) {
-  if (roles.length === 0) {
-    return (
-      <p className="text-sm text-gray-500">公開済みの割り当てはまだありません。</p>
-    );
-  }
+// 折りたたみの見出しつきグループ（期限切れ・終わったシフト）
+function Collapsible({
+  title,
+  count,
+  defaultOpen = false,
+  children,
+}: {
+  title: string;
+  count: number;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}) {
+  if (count === 0) return null;
   return (
-    <ul className="flex flex-col gap-2">
-      <li className="text-xs text-gray-500">
-        提出期限のあとに出られなくなったときは、「希望を出す」の該当シフトから欠席を連絡できます（開始時刻まで）。
-      </li>
-      {roles.map((r, i) => (
-        <li key={i} className="rounded border bg-white p-4">
-          <p className="font-bold">
-            {r.date}（{r.slot_type === 'day' ? '当日' : '研修'}）
-          </p>
-          {r.title && <p className="font-bold">{r.title}</p>}
-          <p className="text-sm text-gray-600">
-            {hm(r.start_time)}〜{hm(r.end_time)}
-          </p>
-          {r.role === NO_ROLE ? (
-            <p className="mt-1">
-              <span className="font-bold">出勤</span>
-              <span className="text-sm text-gray-500">（役割の指定なし）</span>
-            </p>
-          ) : (
-            <p className="mt-1">
-              役割: <span className="font-bold">{r.role}</span>
-            </p>
-          )}
-        </li>
-      ))}
-    </ul>
+    <details open={defaultOpen} className="group">
+      <summary className="flex cursor-pointer list-none items-center justify-between rounded border bg-white px-4 py-3 text-sm text-gray-600">
+        <span>
+          {title}（{count}件）
+        </span>
+        <span aria-hidden="true" className="text-gray-400 group-open:rotate-180">
+          ▼
+        </span>
+      </summary>
+      <div className="mt-2 flex flex-col gap-2">{children}</div>
+    </details>
+  );
+}
+
+// 確定した役割のカード。欠席連絡はここから出す（欠席するのは確定した予定なので）。
+function RoleCard({
+  role,
+  slot,
+  onSaved,
+}: {
+  role: MyRole;
+  slot: Slot | undefined;
+  onSaved: () => void;
+}) {
+  return (
+    <li className="rounded border bg-white p-4">
+      <SlotHeading slot={role} />
+      {role.role === NO_ROLE ? (
+        <p className="mt-1">
+          <span className="font-bold">出勤</span>
+          <span className="text-sm text-gray-500">（役割の指定なし）</span>
+        </p>
+      ) : (
+        <p className="mt-1">
+          役割: <span className="font-bold">{role.role}</span>
+        </p>
+      )}
+      {slot && <AbsenceBox slot={slot} onSaved={onSaved} />}
+    </li>
+  );
+}
+
+function MyRoles({
+  roles,
+  slotsById,
+  onSaved,
+}: {
+  roles: MyRole[];
+  slotsById: Map<string, Slot>;
+  onSaved: () => void;
+}) {
+  if (roles.length === 0) {
+    return <p className="text-sm text-gray-500">確定した予定はまだありません。</p>;
+  }
+  const today = todayJst();
+  const upcoming = roles.filter((r) => r.date >= today);
+  // 終わった分は新しい順（直近に終わったものが上）
+  const past = roles.filter((r) => r.date < today).reverse();
+
+  return (
+    <div className="flex flex-col gap-3">
+      {upcoming.length === 0 ? (
+        <p className="text-sm text-gray-500">これからの確定した予定はありません。</p>
+      ) : (
+        <ul className="flex flex-col gap-2">
+          {upcoming.map((r) => (
+            <RoleCard key={r.slot_id} role={r} slot={slotsById.get(r.slot_id)} onSaved={onSaved} />
+          ))}
+        </ul>
+      )}
+      <Collapsible title="終わったシフト" count={past.length}>
+        <ul className="flex flex-col gap-2">
+          {past.map((r) => (
+            <RoleCard key={r.slot_id} role={r} slot={undefined} onSaved={onSaved} />
+          ))}
+        </ul>
+      </Collapsible>
+    </div>
   );
 }
 
 // シフト画面。「希望を出す」と「確定した役割」を1画面の切り替えにまとめている
 // （下部ナビのタブ数を減らして1つ1つを大きくするため）。
+// 2026-11-24 見直し: 切り替えは1段だけ（「1件ずつ／まとめて」は廃止して1つの一覧に）、
+// 未回答を上・期限切れは折りたたみ、欠席連絡は確定した役割のカードへ、切り替えは URL に残す。
 export default function StaffShifts({
   myRoles,
   initialView = 'submit',
 }: {
   myRoles: MyRole[];
-  initialView?: 'submit' | 'roles';
+  initialView?: View;
 }) {
-  const [view, setView] = useState<'submit' | 'roles'>(initialView);
+  const [view, setView] = useState<View>(initialView);
   const [slots, setSlots] = useState<Slot[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [mode, setMode] = useState<'single' | 'bulk'>('single');
+  // 開いた時点で未回答だった枠。答えてもその場では並びを変えない
+  // （押したカードが別の場所へ飛んで行くと、保存できたか見失うため）。
+  const [firstUnanswered, setFirstUnanswered] = useState<Set<string> | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -496,7 +554,12 @@ export default function StaffShifts({
         return;
       }
       const data = await res.json();
-      setSlots(data.slots ?? []);
+      const list: Slot[] = data.slots ?? [];
+      setError(null);
+      setSlots(list);
+      setFirstUnanswered(
+        (cur) => cur ?? new Set(list.filter((s) => !s.expired && !s.submission).map((s) => s.id))
+      );
     } catch {
       setError('通信エラーが発生しました');
     } finally {
@@ -510,87 +573,97 @@ export default function StaffShifts({
     })();
   }, [load]);
 
-  const unanswered = slots.filter((s) => !s.expired && !s.submission).length;
+  function changeView(next: View) {
+    setView(next);
+    // 再読み込み・戻るで同じ側が開くよう URL に残す（ネイティブの history API は Next のルーターと連動する）
+    window.history.replaceState(
+      null,
+      '',
+      next === 'roles' ? '/dashboard/shifts?view=roles' : '/dashboard/shifts'
+    );
+  }
+
+  const roleSlotIds = new Set(myRoles.map((r) => r.slot_id));
+  const slotsById = new Map(slots.map((s) => [s.id, s]));
+  const unansweredSet = firstUnanswered ?? new Set<string>();
+  const openSlots = slots
+    .filter((s) => !s.expired)
+    // 開いた時点で未回答だったものを上へ（同じグループ内は API の並び＝日付の近い順）
+    .sort((a, b) => Number(unansweredSet.has(b.id)) - Number(unansweredSet.has(a.id)));
+  const unansweredNow = openSlots.filter((s) => !s.submission);
+  // 期限切れのうち、確定した役割に入っているものは役割側に出すのでここには出さない
+  const expiredSlots = slots.filter((s) => s.expired && !roleSlotIds.has(s.id));
+  const expiredActionable = expiredSlots.some((s) => s.absence || s.can_report_absence);
+
+  const tabs: { id: View; label: string; badge?: number }[] = [
+    { id: 'submit', label: '希望を出す', badge: unansweredNow.length },
+    { id: 'roles', label: '確定した役割' },
+  ];
 
   return (
     <div className="flex flex-col gap-4">
-      {/* 画面の切り替え */}
-      <div className="flex gap-1 rounded border bg-white p-1">
-        <button
-          type="button"
-          onClick={() => setView('submit')}
-          className={`flex-1 rounded px-3 py-2 text-sm ${
-            view === 'submit' ? 'bg-accent font-bold text-white' : 'text-gray-600'
-          }`}
-        >
-          希望を出す
-          {unanswered > 0 && (
-            <span
-              className={`ml-1 rounded-full px-1.5 text-xs ${
-                view === 'submit' ? 'bg-white text-accent' : 'bg-amber-100 text-amber-800'
+      <h1 className="sr-only">シフト</h1>
+      <div role="tablist" className="flex gap-1 rounded border bg-white p-1">
+        {tabs.map((t) => {
+          const active = view === t.id;
+          return (
+            <button
+              key={t.id}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              onClick={() => changeView(t.id)}
+              className={`flex-1 rounded px-3 py-2.5 text-sm ${
+                active ? 'bg-accent font-bold text-white' : 'text-gray-600'
               }`}
             >
-              {unanswered}
-            </span>
-          )}
-        </button>
-        <button
-          type="button"
-          onClick={() => setView('roles')}
-          className={`flex-1 rounded px-3 py-2 text-sm ${
-            view === 'roles' ? 'bg-accent font-bold text-white' : 'text-gray-600'
-          }`}
-        >
-          確定した役割
-        </button>
+              {t.label}
+              {!!t.badge && (
+                <span
+                  className={`ml-1 rounded-full px-1.5 text-xs ${
+                    active ? 'bg-white text-accent' : 'bg-amber-100 text-amber-800'
+                  }`}
+                >
+                  {t.badge}
+                </span>
+              )}
+            </button>
+          );
+        })}
       </div>
 
+      {error && <p className="text-sm text-red-600">{error}</p>}
+
       {view === 'roles' ? (
-        <>
-          <h1 className="text-xl font-bold">確定した役割</h1>
-          <MyRoles roles={myRoles} />
-        </>
+        <MyRoles roles={myRoles} slotsById={slotsById} onSaved={load} />
+      ) : loading ? (
+        <CardSkeleton count={2} />
       ) : (
         <>
-          <div className="flex items-center justify-between">
-            <h1 className="text-xl font-bold">シフト希望提出</h1>
-            <div className="flex gap-1">
-              <button
-                type="button"
-                onClick={() => setMode('single')}
-                className={`rounded border px-3 py-1 text-sm ${
-                  mode === 'single' ? 'bg-accent text-white' : 'bg-white'
-                }`}
-              >
-                1件ずつ
-              </button>
-              <button
-                type="button"
-                onClick={() => setMode('bulk')}
-                className={`rounded border px-3 py-1 text-sm ${
-                  mode === 'bulk' ? 'bg-accent text-white' : 'bg-white'
-                }`}
-              >
-                まとめて
-              </button>
-            </div>
-          </div>
-
-          {loading && <p className="text-sm text-gray-500">読み込み中…</p>}
-          {error && <p className="text-sm text-red-600">{error}</p>}
-          {!loading && slots.length === 0 && (
+          {slots.length === 0 && (
             <p className="text-sm text-gray-500">対象のシフトはありません。</p>
           )}
-
-          {!loading &&
-            slots.length > 0 &&
-            (mode === 'single' ? (
-              slots.map((slot) => (
-                <ShiftCard key={slot.id} slot={slot} onSaved={load} />
-              ))
-            ) : (
-              <BulkSubmit slots={slots} onSaved={load} />
+          {slots.length > 0 && openSlots.length === 0 && (
+            <p className="text-sm text-gray-500">提出できる（期限内の）シフトはありません。</p>
+          )}
+          {unansweredNow.length >= 2 && <BulkAnswer slots={unansweredNow} onSaved={load} />}
+          {openSlots.map((slot) => (
+            <ShiftCard
+              key={slot.id}
+              slot={slot}
+              highlight={unansweredSet.has(slot.id)}
+              onSaved={load}
+            />
+          ))}
+          <Collapsible
+            title="提出期限が過ぎた枠"
+            count={expiredSlots.length}
+            defaultOpen={expiredActionable}
+          >
+            {expiredSlots.map((slot) => (
+              <ExpiredCard key={slot.id} slot={slot} onSaved={load} />
             ))}
+          </Collapsible>
         </>
       )}
     </div>

@@ -5,16 +5,7 @@ import {
   type VisibleSuggestion,
 } from '@/lib/staff-queries';
 import SuggestionForm from '@/components/dashboard/SuggestionForm';
-
-function formatDateJst(iso: string): string {
-  return new Intl.DateTimeFormat('ja-JP', {
-    timeZone: 'Asia/Tokyo',
-    month: 'numeric',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(iso));
-}
+import { formatDateTimeJst } from '@/lib/datetime';
 
 // 目安箱。一覧はサーバーで組み立て（表示してから取りに行く形をやめた）、
 // クライアント側の動きが要る投稿フォームだけを切り出している。
@@ -74,7 +65,7 @@ export default async function StaffSuggestionsPage() {
               {s.content}
             </p>
             <p className="mt-2 text-xs text-gray-400">
-              {s.author_name ?? '（名前非表示）'} ・ {formatDateJst(s.created_at)}
+              {s.author_name ?? '（名前非表示）'} ・ {formatDateTimeJst(s.created_at)}
             </p>
             {s.admin_reply && (
               <div className="mt-3 rounded bg-blue-50 p-3">

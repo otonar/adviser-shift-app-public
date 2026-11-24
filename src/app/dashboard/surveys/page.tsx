@@ -6,9 +6,16 @@ import SurveyList from '@/components/dashboard/SurveyList';
 // スタッフ向け: 公開済みの当日アンケート結果を見る画面。
 // 一覧はサーバーで取り（表示してから取りに行く形をやめた）、
 // 詳細（項目ごとの値）は開いたものだけクライアントから取りに行く。
-export default async function StaffSurveysPage() {
+export default async function StaffSurveysPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ open?: string }>;
+}) {
   const auth = await authenticateUser();
   if (!auth.ok) redirect('/');
+
+  // ホームの「アンケート結果」から来たときは、押した結果を開いた状態にする
+  const { open } = await searchParams;
 
   // 一覧の取得失敗は致命的でないので空扱いにする
   let surveys: SurveySummary[] = [];
@@ -27,7 +34,7 @@ export default async function StaffSurveysPage() {
         </p>
       </div>
 
-      <SurveyList surveys={surveys} />
+      <SurveyList surveys={surveys} initialOpenId={open ?? null} />
     </div>
   );
 }

@@ -2,6 +2,8 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
+import { formatDateJa } from '@/lib/datetime';
+import { useFlash, FlashMessage } from '../ui/Flash';
 import { SURVEY_ANSWER_TYPES, type SurveyAnswerType, type SurveyScope } from '@/types';
 
 type Survey = {
@@ -78,7 +80,7 @@ export default function SurveyManager() {
               >
                 {s.scope === 'core' ? 'コア限定' : '全体'}
               </span>
-              <span className="text-gray-500">{s.date}</span>
+              <span className="text-gray-500">{formatDateJa(s.date)}</span>
               {s.respondent_count !== null && (
                 <span className="text-gray-500">回答 {s.respondent_count} 件</span>
               )}
@@ -105,13 +107,12 @@ function CreateSurveyForm({ onCreated }: { onCreated: () => Promise<void> }) {
   const [scope, setScope] = useState<SurveyScope>('all');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState(false);
+  const { message: done, flash } = useFlash();
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
     setError(null);
-    setDone(false);
     try {
       const res = await fetch('/api/surveys', {
         method: 'POST',
@@ -134,7 +135,7 @@ function CreateSurveyForm({ onCreated }: { onCreated: () => Promise<void> }) {
       setNote('');
       setRespondentCount('');
       setScope('all');
-      setDone(true);
+      flash('作成しました');
       await onCreated();
     } catch {
       setError('通信エラーが発生しました');
@@ -226,7 +227,7 @@ function CreateSurveyForm({ onCreated }: { onCreated: () => Promise<void> }) {
           >
             {saving ? '作成中…' : '下書きを作成'}
           </button>
-          {done && <span className="text-sm text-green-700">作成しました ✓</span>}
+          <FlashMessage message={done} />
           {error && <span className="text-sm text-red-600">{error}</span>}
         </div>
         <p className="text-xs text-gray-500">

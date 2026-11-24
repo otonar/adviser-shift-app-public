@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import { formatDateTimeJst } from '@/lib/datetime';
 
 type Suggestion = {
   id: string;
@@ -14,16 +15,6 @@ type Suggestion = {
   created_at: string;
   author_name: string | null;
 };
-
-function formatDateJst(iso: string): string {
-  return new Intl.DateTimeFormat('ja-JP', {
-    timeZone: 'Asia/Tokyo',
-    month: 'numeric',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(iso));
-}
 
 export default function SuggestionManager() {
   const [list, setList] = useState<Suggestion[]>([]);
@@ -183,7 +174,7 @@ function SuggestionCard({
         {suggestion.show_name
           ? (suggestion.author_name ?? '（不明）')
           : '（名前非表示）'}{' '}
-        ・ {formatDateJst(suggestion.created_at)}
+        ・ {formatDateTimeJst(suggestion.created_at)}
       </p>
 
       <ReplyEditor suggestion={suggestion} onChanged={onChanged} />
