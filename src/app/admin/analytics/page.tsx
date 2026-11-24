@@ -1,7 +1,8 @@
 import { redirect } from 'next/navigation';
 import { authenticateAdmin } from '@/lib/middleware';
 import { fetchAnalytics, type Analytics } from '@/lib/analytics-queries';
-import { DAY_ROLES, TRAINING_ROLES } from '@/types';
+import { DAY_ROLES, TRAINING_ROLES, SLOT_TYPE_LABEL } from '@/types';
+import { formatDateJa } from '@/lib/datetime';
 
 // 管理画面: 分析ダッシュボード。
 // 「誰に声をかければいいか」「どの役割が足りていないか」を一目で分かるようにする。
@@ -72,9 +73,9 @@ export default async function AdminAnalyticsPage() {
             return (
               <article key={s.slotId} className="rounded border bg-white p-4">
                 <div className="flex flex-wrap items-center gap-2 text-sm">
-                  <span className="font-bold">{s.date}</span>
+                  <span className="font-bold">{formatDateJa(s.date)}</span>
                   <span className="text-gray-500">
-                    （{s.slotType === 'day' ? '当日' : '研修'}）
+                    （{SLOT_TYPE_LABEL[s.slotType]}）
                     {hm(s.startTime)}〜{hm(s.endTime)}
                   </span>
                   {s.expired && (
@@ -195,7 +196,7 @@ export default async function AdminAnalyticsPage() {
                     <tr key={`${s.slotType}:${s.role}`} className="border-b">
                       <td className="p-2 font-medium">{s.role}</td>
                       <td className="p-2 text-gray-500">
-                        {s.slotType === 'day' ? '当日' : '研修'}
+                        {SLOT_TYPE_LABEL[s.slotType]}
                       </td>
                       <td className="p-2 whitespace-nowrap text-gray-600">
                         {s.assigned}/{s.required}

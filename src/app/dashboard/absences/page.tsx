@@ -1,20 +1,9 @@
-import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { authenticateUser } from '@/lib/middleware';
 import { isCoreMember } from '@/lib/scope';
 import { fetchUpcomingAbsences, type AbsenceListItem } from '@/lib/absence-server';
-import { formatSlotDateJa } from '@/lib/absence';
+import { formatDateJa, formatDateTimeJst, formatTimeRange } from '@/lib/datetime';
 import { NO_ROLE, SLOT_TYPE_LABEL } from '@/types';
-
-function formatDateTimeJst(iso: string): string {
-  return new Intl.DateTimeFormat('ja-JP', {
-    timeZone: 'Asia/Tokyo',
-    month: 'numeric',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(iso));
-}
 
 // 欠席連絡の一覧（コアメンバーのみ）。LINE は連携済みの人にしか届かないので、
 // 未連携のコアメンバーもここで見られるようにしている。今日以降のシフトのぶんだけ出す。
@@ -51,9 +40,10 @@ export default async function AbsencesPage() {
           {list.map((a) => (
             <li key={a.id} className="rounded border bg-white p-4">
               <p className="font-bold">
-                {formatSlotDateJa(a.slot.date)}（{SLOT_TYPE_LABEL[a.slot.slot_type]}）
-                <span className="ml-1 font-normal text-gray-600">
-                  {a.slot.start_time.slice(0, 5)}〜{a.slot.end_time.slice(0, 5)}
+                {formatDateJa(a.slot.date)}
+                <span className="ml-1 text-sm font-normal text-gray-600">
+                  {formatTimeRange(a.slot.start_time, a.slot.end_time)}・
+                  {SLOT_TYPE_LABEL[a.slot.slot_type]}
                 </span>
               </p>
               {a.slot.title && <p className="font-bold">{a.slot.title}</p>}
@@ -76,10 +66,6 @@ export default async function AbsencesPage() {
           ))}
         </ul>
       )}
-
-      <Link href="/dashboard" className="text-sm text-gray-500 underline">
-        ホームへ戻る
-      </Link>
     </div>
   );
 }

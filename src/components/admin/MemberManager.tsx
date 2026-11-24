@@ -17,7 +17,9 @@ export default function MemberManager() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [editingId, setEditingId] = useState<string | null>(null);
+  // 開いている（操作を出している）メンバー
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
   // パスワードリセットで発行した一時パスワード（1回だけ表示）。
   const [resetResult, setResetResult] = useState<{
     name: string;
@@ -102,8 +104,16 @@ export default function MemberManager() {
     }
   }
 
+  const q = query.trim();
+  const match = (m: Member) => q === '' || m.name.includes(q);
+  const active = members.filter((m) => m.is_active);
+  const inactive = members.filter((m) => !m.is_active);
+  const unlinked = active.filter((m) => !m.line_linked).length;
+  const shownActive = active.filter(match);
+  const shownInactive = inactive.filter(match);
+
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex max-w-3xl flex-col gap-3">
       {resetResult && (
         <TempPasswordBanner
           name={resetResult.name}
@@ -117,103 +127,140 @@ export default function MemberManager() {
         <p className="text-sm text-gray-500">メンバーはいません。</p>
       )}
       {members.length > 0 && (
-        <div className="overflow-x-auto rounded border bg-white">
-          <table className="w-full text-sm">
-            <thead className="border-b bg-gray-50 text-left text-xs text-gray-500">
-              <tr>
-                <th className="px-3 py-2">名前</th>
-                <th className="px-3 py-2">当日用役割</th>
-                <th className="px-3 py-2">研修用役割</th>
-                <th className="px-3 py-2">LINE</th>
-                <th className="px-3 py-2">状態</th>
-                <th className="px-3 py-2">操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              {members.map((m) => (
-                <FragmentRow
-                  key={m.id}
-                  member={m}
-                  busy={busyId === m.id}
-                  editing={editingId === m.id}
-                  onToggleEdit={() =>
-                    setEditingId((id) => (id === m.id ? null : m.id))
-                  }
-                  onSetActive={(active) => setActive(m, active)}
-                  onResetPassword={() => resetPassword(m)}
-                  onSaved={() => {
-                    setEditingId(null);
-                    load();
-                  }}
-                />
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <>
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="名前で絞り込み"
+            aria-label="名前で絞り込み"
+            className="max-w-xs rounded border px-3 py-2 text-sm"
+          />
+          <p className="text-xs text-gray-500">
+            在籍 {active.length} 名{inactive.length > 0 && `・脱退済み ${inactive.length} 名`}
+            {unlinked > 0 && `・LINE 未連携 ${unlinked} 名`}。名前を押すと役割の編集やパスワードのリセットができます。
+          </p>
+          <ul className="divide-y rounded border bg-white">
+            {shownActive.map((m) => (
+              <MemberRow
+                key={m.id}
+                member={m}
+                busy={busyId === m.id}
+                open={openId === m.id}
+                onToggle={() => setOpenId((id) => (id === m.id ? null : m.id))}
+                onSetActive={(v) => setActive(m, v)}
+                onResetPassword={() => resetPassword(m)}
+                onSaved={() => {
+                  setOpenId(null);
+                  void load();
+                }}
+              />
+            ))}
+            {shownActive.length === 0 && (
+              <li className="p-3 text-sm text-gray-500">該当するメンバーはいません。</li>
+            )}
+          </ul>
+          {shownInactive.length > 0 && (
+            <details>
+              <summary className="cursor-pointer rounded border bg-white px-3 py-2 text-sm text-gray-600">
+                脱退済み（{shownInactive.length}名）
+              </summary>
+              <ul className="mt-2 divide-y rounded border bg-white">
+                {shownInactive.map((m) => (
+                  <MemberRow
+                    key={m.id}
+                    member={m}
+                    busy={busyId === m.id}
+                    open={openId === m.id}
+                    onToggle={() => setOpenId((id) => (id === m.id ? null : m.id))}
+                    onSetActive={(v) => setActive(m, v)}
+                    onResetPassword={() => resetPassword(m)}
+                    onSaved={() => {
+                      setOpenId(null);
+                      void load();
+                    }}
+                  />
+                ))}
+              </ul>
+            </details>
+          )}
+        </>
       )}
     </div>
   );
 }
 
-// 1メンバーの表示行＋（編集中なら）役割編集の展開行。
-function FragmentRow({
+// 1メンバーの行。押すと開いて、役割の編集と操作（パスワードリセット・脱退/復帰）が出る。
+// 以前は表の毎行に「役割編集・PWリセット・強制脱退」が並び、50人で150個のボタンになっていた
+// （スマホでは横スクロールの奥。2026-11-24 UI 見直し G2）。
+function MemberRow({
   member,
   busy,
-  editing,
-  onToggleEdit,
+  open,
+  onToggle,
   onSetActive,
   onResetPassword,
   onSaved,
 }: {
   member: Member;
   busy: boolean;
-  editing: boolean;
-  onToggleEdit: () => void;
+  open: boolean;
+  onToggle: () => void;
   onSetActive: (active: boolean) => void;
   onResetPassword: () => void;
   onSaved: () => void;
 }) {
+  const roles = [
+    member.day_roles.length > 0 && `当日: ${member.day_roles.join('・')}`,
+    member.training_roles.length > 0 && `研修: ${member.training_roles.join('・')}`,
+  ].filter(Boolean);
   return (
-    <>
-      <tr
-        className={`border-b last:border-b-0 ${
-          member.is_active ? '' : 'bg-gray-50 text-gray-400'
-        }`}
+    <li className={member.is_active ? '' : 'bg-gray-50'}>
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        className="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left hover:bg-gray-50"
       >
-        <td className="px-3 py-2 font-medium">{member.name}</td>
-        <td className="px-3 py-2">{member.day_roles.join('・') || '—'}</td>
-        <td className="px-3 py-2">{member.training_roles.join('・') || '—'}</td>
-        <td className="px-3 py-2">{member.line_linked ? '連携済み' : '未連携'}</td>
-        <td className="px-3 py-2">
-          {member.is_active ? (
-            <span className="text-green-700">在籍</span>
-          ) : (
-            <span className="text-gray-500">脱退済み</span>
+        <span className="min-w-0">
+          <span className={`font-medium ${member.is_active ? '' : 'text-gray-500'}`}>
+            {member.name}
+          </span>
+          {!member.line_linked && member.is_active && (
+            <span className="ml-2 whitespace-nowrap rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-800">
+              LINE 未連携
+            </span>
           )}
-        </td>
-        <td className="px-3 py-2">
-          <div className="flex flex-wrap gap-1">
-            <button
-              type="button"
-              onClick={onToggleEdit}
-              className="rounded border px-2 py-1 text-xs"
-            >
-              {editing ? '閉じる' : '役割編集'}
-            </button>
-            <button
-              type="button"
-              disabled={busy}
-              onClick={onResetPassword}
-              className="rounded border px-2 py-1 text-xs disabled:opacity-50"
-            >
-              PWリセット
-            </button>
+          <span className="block truncate text-xs text-gray-500">
+            {roles.length > 0 ? roles.join(' ／ ') : '役割なし'}
+          </span>
+        </span>
+        <span aria-hidden="true" className="text-gray-400">
+          {open ? '▲' : '▼'}
+        </span>
+      </button>
+      {open && (
+        <div className="flex flex-col gap-4 border-t bg-gray-50 px-3 py-3">
+          {member.is_active && (
+            <RoleEditor member={member} onSaved={onSaved} onCancel={onToggle} />
+          )}
+          <div className="flex flex-wrap gap-2 border-t pt-3">
+            {member.is_active && (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={onResetPassword}
+                className="rounded border bg-white px-3 py-1.5 text-xs disabled:opacity-50"
+              >
+                パスワードをリセット
+              </button>
+            )}
             {member.is_active ? (
               <button
                 type="button"
                 disabled={busy}
                 onClick={() => onSetActive(false)}
-                className="rounded border border-red-300 px-2 py-1 text-xs text-red-700 disabled:opacity-50"
+                className="rounded border border-red-300 bg-white px-3 py-1.5 text-xs text-red-700 disabled:opacity-50"
               >
                 強制脱退
               </button>
@@ -222,22 +269,15 @@ function FragmentRow({
                 type="button"
                 disabled={busy}
                 onClick={() => onSetActive(true)}
-                className="rounded border px-2 py-1 text-xs disabled:opacity-50"
+                className="rounded border bg-white px-3 py-1.5 text-xs disabled:opacity-50"
               >
-                復帰
+                在籍に戻す
               </button>
             )}
           </div>
-        </td>
-      </tr>
-      {editing && (
-        <tr className="border-b last:border-b-0 bg-gray-50">
-          <td colSpan={6} className="px-3 py-3">
-            <RoleEditor member={member} onSaved={onSaved} onCancel={onToggleEdit} />
-          </td>
-        </tr>
+        </div>
       )}
-    </>
+    </li>
   );
 }
 
@@ -337,7 +377,7 @@ function RoleEditor({
           onClick={onCancel}
           className="rounded border px-4 py-1.5 text-xs disabled:opacity-50"
         >
-          取消
+          閉じる
         </button>
         {error && <span className="text-xs text-red-600">{error}</span>}
       </div>

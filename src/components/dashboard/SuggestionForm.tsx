@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import { useFlash, FlashMessage } from '@/components/ui/Flash';
 import {
   SUGGESTION_CATEGORIES,
   SUGGESTION_TYPES,
@@ -24,13 +25,12 @@ export default function SuggestionForm() {
   const [content, setContent] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState(false);
+  const { message: done, flash } = useFlash();
   const [refreshing, startRefresh] = useTransition();
 
   async function submit() {
     setSaving(true);
     setError(null);
-    setDone(false);
     try {
       const res = await fetch('/api/suggestions', {
         method: 'POST',
@@ -49,7 +49,7 @@ export default function SuggestionForm() {
         return;
       }
       setContent('');
-      setDone(true);
+      flash('投稿しました');
       startRefresh(() => router.refresh());
     } catch {
       setError('通信エラーが発生しました');
@@ -159,7 +159,7 @@ export default function SuggestionForm() {
         >
           {saving ? '送信中…' : '投稿する'}
         </button>
-        {done && <span className="text-sm text-green-700">送信しました ✓</span>}
+        <FlashMessage message={done} />
         {error && <span className="text-sm text-red-600">{error}</span>}
       </div>
     </section>

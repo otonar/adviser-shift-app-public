@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import { formatDateTimeJst } from '@/lib/datetime';
 
 type Member = {
   id: string;
@@ -87,7 +88,7 @@ export default function NotificationPanel() {
         return;
       }
       const data = await res.json();
-      setResult(`送信 ${data.sent} 件 / スキップ ${data.skipped} 件`);
+      setResult(`送信しました ✓（送信 ${data.sent} 件 / スキップ ${data.skipped} 件）`);
       setMessage('');
       loadLogs();
     } catch {
@@ -166,7 +167,7 @@ export default function NotificationPanel() {
         >
           {sending ? '送信中…' : '送信'}
         </button>
-        {result && <p className="mt-2 text-sm text-green-600">{result}</p>}
+        {result && <p className="mt-2 text-sm font-bold text-green-700">{result}</p>}
         {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
       </section>
 
@@ -189,9 +190,7 @@ export default function NotificationPanel() {
                 {logs.map((l) => (
                   <tr key={l.id} className="border-b last:border-b-0 align-top">
                     <td className="whitespace-nowrap px-2 py-1 text-xs text-gray-500">
-                      {new Date(l.sent_at).toLocaleString('ja-JP', {
-                        timeZone: 'Asia/Tokyo',
-                      })}
+                      {formatDateTimeJst(l.sent_at)}
                     </td>
                     <td className="px-2 py-1 text-xs">{l.notification_type}</td>
                     <td className="px-2 py-1">{l.message}</td>

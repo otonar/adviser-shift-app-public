@@ -11,6 +11,8 @@ import { compareSlotsUpcomingFirst, isExpired, todayJst } from './datetime';
 // ※ 先に書いた fetchMyPublishedRoles / fetchMyPendingSlots は空配列に倒す従来の作り。
 
 export type PublishedRole = {
+  // シフト枠の id（シフト画面で欠席連絡の状態と突き合わせるため）
+  slot_id: string;
   role: string;
   date: string;
   start_time: string;
@@ -45,7 +47,7 @@ export async function fetchMyPublishedRoles(userId: string): Promise<PublishedRo
   const { data } = await supabase
     .from('shift_assignments')
     .select(
-      'role, shift_slots(date, start_time, end_time, slot_type, title, assignment_status)'
+      'role, shift_slot_id, shift_slots(date, start_time, end_time, slot_type, title, assignment_status)'
     )
     .eq('user_id', userId);
 
@@ -54,6 +56,7 @@ export async function fetchMyPublishedRoles(userId: string): Promise<PublishedRo
       const slot = one<JoinedSlot>(r.shift_slots as JoinedSlot | JoinedSlot[] | null);
       if (!slot || slot.assignment_status !== 'published') return null;
       return {
+        slot_id: r.shift_slot_id as string,
         role: r.role as string,
         date: slot.date,
         start_time: slot.start_time,
@@ -120,8 +123,15 @@ export async function fetchMyPendingSlots(userId: string): Promise<PendingSlot[]
  * 次に出勤するシフト（公開済みの割り当てのうち、今日以降で一番近いもの）。
  */
 export function nextRole(roles: PublishedRole[]): PublishedRole | null {
+  return upcomingRoles(roles, 1)[0] ?? null;
+}
+
+/**
+ * 今日以降の確定した役割を近い順に最大 limit 件（ホームの「次のシフト」用）。
+ */
+export function upcomingRoles(roles: PublishedRole[], limit: number): PublishedRole[] {
   const today = todayJst();
-  return roles.find((r) => r.date >= today) ?? null;
+  return roles.filter((r) => r.date >= today).slice(0, limit);
 }
 
 export type VisibleProduct = {

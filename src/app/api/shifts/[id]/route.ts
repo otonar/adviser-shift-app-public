@@ -1,7 +1,7 @@
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { authenticateAdmin } from '@/lib/middleware';
 import { updateShiftSchema } from '@/lib/validators';
-import { computeDeadline, deadlineFromDate } from '@/lib/datetime';
+import { computeDeadline, deadlineFromDate, isExpired } from '@/lib/datetime';
 import { jsonError, jsonOk, parseBody, verifyOrigin, forbiddenOrigin, withRoute, isUuid, notFound } from '@/lib/http';
 
 type Params = { params: Promise<{ id: string }> };
@@ -95,7 +95,8 @@ async function getHandler(_req: Request, { params }: Params) {
   });
 
   return jsonOk({
-    slot,
+    // 締切済みかはサーバーの時刻で判定して返す（画面で自動割り振り前の確認に使う）
+    slot: { ...slot, expired: isExpired(slot.deadline) },
     targets,
     role_requirements: roleReqs ?? [],
     assignments,

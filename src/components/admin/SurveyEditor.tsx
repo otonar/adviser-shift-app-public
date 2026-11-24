@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import type { SurveyAnswerType, SurveyScope } from '@/types';
 import SurveyTrend, { type HistoryPoint } from '../ui/SurveyTrend';
+import { useFlash, FlashMessage } from '../ui/Flash';
 
 type Survey = {
   id: string;
@@ -46,7 +47,7 @@ export default function SurveyEditor({ surveyId }: { surveyId: string }) {
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
+  const { message: saved, flash } = useFlash();
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/surveys/${surveyId}`);
@@ -93,7 +94,6 @@ export default function SurveyEditor({ surveyId }: { surveyId: string }) {
   async function save(nextStatus?: 'draft' | 'published') {
     setBusy(true);
     setError(null);
-    setSaved(false);
     try {
       const answers = items.map((it) => {
         const raw = values[it.question.id] ?? '';
@@ -131,7 +131,7 @@ export default function SurveyEditor({ surveyId }: { surveyId: string }) {
         setError(data.error ?? '保存に失敗しました');
         return;
       }
-      setSaved(true);
+      flash('保存しました');
       await load();
     } catch {
       setError('通信エラーが発生しました');
@@ -351,7 +351,7 @@ export default function SurveyEditor({ surveyId }: { surveyId: string }) {
         >
           削除
         </button>
-        {saved && <span className="w-full text-sm text-green-700">保存しました ✓</span>}
+        <FlashMessage message={saved} className="w-full" />
         {error && <span className="w-full text-sm text-red-600">{error}</span>}
       </section>
     </div>

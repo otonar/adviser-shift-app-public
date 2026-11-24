@@ -2,12 +2,21 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
-import type { SlotType } from '@/types';
+import { SLOT_TYPE_LABEL, type SlotType } from '@/types';
 import TargetUserSelector, {
   type SelectableUser,
 } from './TargetUserSelector';
 import TimeSelect from '../ui/TimeSelect';
-import { DEFAULT_DEADLINE_DAYS, addDays, deadlineDateJst } from '@/lib/datetime';
+import {
+  DEFAULT_DEADLINE_DAYS,
+  addDays,
+  deadlineDateJst,
+  formatDateJa,
+  formatTimeRange,
+  todayJst,
+} from '@/lib/datetime';
+import StatusBadge from '../ui/StatusBadge';
+import { useFlash, FlashMessage } from '../ui/Flash';
 
 type Slot = {
   id: string;
@@ -21,13 +30,53 @@ type Slot = {
   // title 列を追加する前の DB では返ってこないので省略可にしている
   title?: string | null;
   note: string | null;
+  // 提出の進み具合（今日以降の枠だけ API が数える。終わった枠は null）
+  progress?: { targets: number; submitted: number; available: number } | null;
 };
 
-const statusBadge: Record<Slot['assignment_status'], { label: string; cls: string }> = {
-  open: { label: '受付中', cls: 'bg-blue-100 text-blue-800' },
-  draft: { label: '調整中', cls: 'bg-yellow-100 text-yellow-800' },
-  published: { label: '確定', cls: 'bg-green-100 text-green-800' },
-};
+// 一覧の1行。何の枠か・提出の進み具合・状態がこの行だけで分かるようにする
+// （以前は状態バッジだけで、どこから手をつけるか開かないと分からなかった。M2）。
+function SlotRow({ slot }: { slot: Slot }) {
+  const p = slot.progress;
+  const missing = p ? p.targets - p.submitted : 0;
+  return (
+    <li>
+      <Link
+        href={`/admin/shifts/${slot.id}`}
+        className="flex items-center justify-between gap-2 rounded border bg-white p-3 hover:bg-gray-50"
+      >
+        <span className="min-w-0">
+          <span className="font-bold">{formatDateJa(slot.date)}</span>{' '}
+          <span className="text-sm text-gray-600">
+            {formatTimeRange(slot.start_time, slot.end_time)}・{SLOT_TYPE_LABEL[slot.slot_type]}
+          </span>
+          {/* 何の枠か見分けるための行。タイトルが無い枠は備考で代用する */}
+          {(slot.title || slot.note) && (
+            <span className="block truncate text-sm">
+              {slot.title && <span className="font-bold">{slot.title}</span>}
+              {slot.title && slot.note && ' '}
+              {slot.note && <span className="text-gray-500">{slot.note}</span>}
+            </span>
+          )}
+          <span className="block text-xs text-gray-500">
+            {p && (
+              <>
+                提出 {p.submitted}/{p.targets}（○ {p.available}）
+                {missing > 0 && slot.assignment_status === 'open' && (
+                  <span className="text-amber-700"> 未提出 {missing}</span>
+                )}
+                {' ・ '}
+              </>
+            )}
+            期限 {formatDateJa(deadlineDateJst(slot.deadline))}
+            {slot.expired && '（締切済み）'}
+          </span>
+        </span>
+        <StatusBadge status={slot.assignment_status} expired={slot.expired} />
+      </Link>
+    </li>
+  );
+}
 
 export default function AdminShifts() {
   const [slots, setSlots] = useState<Slot[]>([]);
@@ -47,13 +96,21 @@ export default function AdminShifts() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<string | null>(null);
+  const { message: result, flash } = useFlash(5000);
+  // 作成フォームは開いたときだけ出す（スマホで一覧がフォームの下に沈んでいたため）
+  const [showForm, setShowForm] = useState(false);
 
   function addDate() {
     if (!dateInput || dates.includes(dateInput)) return;
     setDates([...dates, dateInput].sort());
     setDateInput('');
   }
+  // 選んだまま「追加」を押していない日付も対象に含める（以前は押し忘れると
+  // 「日付を1つ以上追加してください」になっていた。M9）。
+  // 選んだ瞬間に追加する形は、PC で日付をキーボード入力すると1桁ごとに
+  // 変更イベントが出て途中の日付まで入ってしまうので採らなかった。
+  const allDates =
+    dateInput && !dates.includes(dateInput) ? [...dates, dateInput].sort() : dates;
   function removeDate(d: string) {
     setDates(dates.filter((x) => x !== d));
   }
@@ -61,7 +118,7 @@ export default function AdminShifts() {
   // （複数のときは枠ごとに違う日になるので空のまま）。
   const deadlineShown =
     deadlineInput ||
-    (dates.length === 1 ? addDays(dates[0], -DEFAULT_DEADLINE_DAYS) : '');
+    (allDates.length === 1 ? addDays(allDates[0], -DEFAULT_DEADLINE_DAYS) : '');
 
   const load = useCallback(async () => {
     const [sRes, uRes] = await Promise.all([
@@ -82,14 +139,13 @@ export default function AdminShifts() {
   async function createSlot(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    setResult(null);
-    if (dates.length === 0) {
-      setError('日付を1つ以上追加してください');
+    if (allDates.length === 0) {
+      setError('日付を選んでください');
       return;
     }
     // dates は昇順なので先頭がいちばん早い日付
-    if (deadlineInput && deadlineInput > dates[0]) {
-      setError(`提出期限はいちばん早い日付（${dates[0]}）より後にできません`);
+    if (deadlineInput && deadlineInput > allDates[0]) {
+      setError(`提出期限はいちばん早い日付（${formatDateJa(allDates[0])}）より後にできません`);
       return;
     }
     setCreating(true);
@@ -99,7 +155,7 @@ export default function AdminShifts() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           slot_type: slotType,
-          dates,
+          dates: allDates,
           start_time: startTime,
           end_time: endTime,
           title: title.trim() || undefined,
@@ -114,7 +170,7 @@ export default function AdminShifts() {
         return;
       }
       const data = await res.json();
-      setResult(`${data.created}件のシフト枠を掲示しました ✓`);
+      flash(`${data.created}件のシフト枠を掲示しました`);
       setDates([]);
       setDateInput('');
       setStartTime('');
@@ -129,10 +185,27 @@ export default function AdminShifts() {
     }
   }
 
+  // API が「今日以降を近い順 → 終わった枠」で返す。終わった枠は新しい順に見せる
+  const today = todayJst();
+  const upcoming = slots.filter((s) => s.date >= today);
+  const past = slots.filter((s) => s.date < today).reverse();
+
   return (
-    <div className="flex flex-col gap-6 md:flex-row">
+    <div className="flex max-w-3xl flex-col gap-4">
+      {/* 掲示した結果はフォームを閉じても見えるよう、フォームの外に出す */}
+      <FlashMessage message={result} />
+      {!showForm && (
+        <button
+          type="button"
+          onClick={() => setShowForm(true)}
+          className="self-start rounded bg-gray-900 px-4 py-2 text-sm text-white"
+        >
+          ＋ シフト枠を作成
+        </button>
+      )}
       {/* 作成フォーム */}
-      <section className="md:w-96">
+      {showForm && (
+      <section>
         <h2 className="mb-2 font-bold">シフト枠を作成</h2>
         <form onSubmit={createSlot} className="flex flex-col gap-3 rounded border bg-white p-4">
           <div className="flex gap-2">
@@ -173,9 +246,10 @@ export default function AdminShifts() {
               <button
                 type="button"
                 onClick={addDate}
-                className="rounded border px-3 py-2 text-sm"
+                disabled={!dateInput}
+                className="rounded border px-3 py-2 text-sm disabled:opacity-50"
               >
-                追加
+                ＋ 別の日も
               </button>
             </div>
             {dates.length > 0 && (
@@ -185,12 +259,12 @@ export default function AdminShifts() {
                     key={d}
                     className="flex items-center gap-1 rounded bg-gray-100 px-2 py-0.5 text-xs"
                   >
-                    {d}
+                    {formatDateJa(d)}
                     <button
                       type="button"
                       onClick={() => removeDate(d)}
                       className="text-gray-500"
-                      aria-label={`${d} を削除`}
+                      aria-label={`${formatDateJa(d)} を外す`}
                     >
                       ×
                     </button>
@@ -199,7 +273,7 @@ export default function AdminShifts() {
               </div>
             )}
             <p className="text-xs text-gray-400">
-              日付を選んで「追加」。複数追加すると同じ時間・対象・提出期限・タイトル・備考でまとめて掲示します。
+              1日だけならそのまま掲示できます。複数の日に出すときは「＋ 別の日も」で足していくと、同じ時間・対象・提出期限・タイトル・備考でまとめて掲示します。
             </p>
           </div>
           <div className="flex gap-2">
@@ -217,19 +291,19 @@ export default function AdminShifts() {
             <input
               type="date"
               value={deadlineShown}
-              max={dates[0]}
+              max={allDates[0]}
               onChange={(e) => setDeadlineInput(e.target.value)}
-              disabled={dates.length === 0}
+              disabled={allDates.length === 0}
               className="rounded border px-3 py-2 disabled:bg-gray-50"
             />
             <span className="text-xs text-gray-400">
-              {dates.length === 0
+              {allDates.length === 0
                 ? '先に日付を追加してください。'
                 : deadlineInput
-                  ? dates.length > 1
+                  ? allDates.length > 1
                     ? 'どの枠もこの期限になります。'
                     : ''
-                  : `選ばなければ${dates.length > 1 ? 'それぞれの' : ''}日付の${DEFAULT_DEADLINE_DAYS}日前です。`}
+                  : `選ばなければ${allDates.length > 1 ? 'それぞれの' : ''}日付の${DEFAULT_DEADLINE_DAYS}日前です。`}
               掲示したあとも、枠を開いて直せます。
             </span>
           </label>
@@ -266,7 +340,6 @@ export default function AdminShifts() {
             />
           </div>
           {error && <p className="text-sm text-red-600">{error}</p>}
-          {result && <p className="text-sm font-bold text-green-600">{result}</p>}
           <button
             type="submit"
             disabled={creating}
@@ -274,57 +347,46 @@ export default function AdminShifts() {
           >
             {creating
               ? '掲示中…'
-              : dates.length > 1
-                ? `${dates.length}日ぶんを掲示`
+              : allDates.length > 1
+                ? `${allDates.length}日ぶんを掲示`
                 : 'シフト枠を掲示'}
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowForm(false)}
+            className="rounded border py-2 text-sm"
+          >
+            閉じる
           </button>
         </form>
       </section>
+      )}
 
-      {/* 一覧 */}
-      <section className="flex-1">
-        <h2 className="mb-2 font-bold">シフト枠一覧</h2>
+      {/* 一覧。これからの枠（近い順）を上に、終わった枠は折りたたむ（M1） */}
+      <section className="flex flex-col gap-2">
+        <h2 className="font-bold">これからの枠</h2>
         {loading && <p className="text-sm text-gray-500">読み込み中…</p>}
-        {!loading && slots.length === 0 && (
-          <p className="text-sm text-gray-500">まだシフト枠がありません。</p>
+        {!loading && upcoming.length === 0 && (
+          <p className="text-sm text-gray-500">これからのシフト枠はありません。</p>
         )}
         <ul className="flex flex-col gap-2">
-          {slots.map((slot) => {
-            const badge = statusBadge[slot.assignment_status];
-            return (
-              <li key={slot.id}>
-                <Link
-                  href={`/admin/shifts/${slot.id}`}
-                  className="flex items-center justify-between gap-2 rounded border bg-white p-3 hover:bg-gray-50"
-                >
-                  <span className="min-w-0">
-                    <span className="font-bold">{slot.date}</span>{' '}
-                    <span className="text-sm text-gray-600">
-                      {slot.start_time.slice(0, 5)}〜{slot.end_time.slice(0, 5)}（
-                      {slot.slot_type === 'day' ? '当日' : '研修'}）
-                    </span>
-                    {/* 何の枠か見分けるための行。タイトルが無い枠は備考で代用する */}
-                    {(slot.title || slot.note) && (
-                      <span className="block truncate text-sm">
-                        {slot.title && <span className="font-bold">{slot.title}</span>}
-                        {slot.title && slot.note && ' '}
-                        {slot.note && <span className="text-gray-500">{slot.note}</span>}
-                      </span>
-                    )}
-                    <span className="block text-xs text-gray-500">
-                      提出期限 {deadlineDateJst(slot.deadline)}
-                      {slot.expired && '（締切済み）'}
-                    </span>
-                  </span>
-                  <span className={`shrink-0 rounded px-2 py-0.5 text-xs ${badge.cls}`}>
-                    {badge.label}
-                  </span>
-                </Link>
-              </li>
-            );
-          })}
+          {upcoming.map((slot) => (
+            <SlotRow key={slot.id} slot={slot} />
+          ))}
         </ul>
       </section>
+      {past.length > 0 && (
+        <details>
+          <summary className="cursor-pointer rounded border bg-white px-3 py-2 text-sm text-gray-600">
+            終わった枠（{past.length}件）
+          </summary>
+          <ul className="mt-2 flex flex-col gap-2">
+            {past.map((slot) => (
+              <SlotRow key={slot.id} slot={slot} />
+            ))}
+          </ul>
+        </details>
+      )}
     </div>
   );
 }
