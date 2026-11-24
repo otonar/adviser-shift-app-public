@@ -47,13 +47,7 @@ async function postHandler(req: Request, { params }: Params) {
     .maybeSingle();
   if (!slot) return notFound('シフト枠が見つかりません');
   if (slot.assignment_status !== 'published') {
-    return jsonError('確定済みの枠ではありません。調整中の枠は「手動調整を保存」を使ってください', 400, 'NOT_PUBLISHED');
-  }
-
-  // 役割はこの枠の種類で使えるもの＋「役割なし」だけ
-  const allowedRoles = new Set<string>([...rolesForSlotType(slot.slot_type as SlotType), NO_ROLE]);
-  if (after.some((a) => !allowedRoles.has(a.role))) {
-    return jsonError('この枠では使えない役割が入っています', 400, 'INVALID_ROLE');
+    return jsonError('確定済みの枠ではありません。調整中の枠は「確定せずに保存」か「確定して LINE で知らせる」を使ってください', 400, 'NOT_PUBLISHED');
   }
 
   const [{ data: beforeRows, error: beforeErr }, { data: targetRows }] = await Promise.all([
@@ -67,6 +61,18 @@ async function postHandler(req: Request, { params }: Params) {
       .eq('shift_slot_id', slotId),
   ]);
   if (beforeErr) return jsonError('保存に失敗しました', 500, 'SAVE_FAILED');
+
+  // 役割はこの枠の種類で使えるもの＋「役割なし」だけ。
+  // ただし、この枠に既に入っている役割は通す（役割の名前を変える前の記録、例: 2026-11-24 に
+  // 「加入」へ変わる前の「共済」が、終わった枠に残っている。その人を動かさずに差し替えられるように）
+  const allowedRoles = new Set<string>([
+    ...rolesForSlotType(slot.slot_type as SlotType),
+    NO_ROLE,
+    ...(beforeRows ?? []).map((r) => r.role as string),
+  ]);
+  if (after.some((a) => !allowedRoles.has(a.role))) {
+    return jsonError('この枠では使えない役割が入っています', 400, 'INVALID_ROLE');
+  }
 
   type U = { name: string; line_user_id: string | null; is_active: boolean | null };
   const one = (u: U | U[] | null): U | null => (Array.isArray(u) ? (u[0] ?? null) : u);

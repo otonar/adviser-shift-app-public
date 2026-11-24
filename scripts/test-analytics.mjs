@@ -101,7 +101,7 @@ const input = {
     // 受付中の枠は割り振り前なので集計対象外であること
     { shift_slot_id: 'sOpenFuture', role: '受付', required_count: 5 },
     // required_count = 0 は対象外
-    { shift_slot_id: 'sPublished', role: '共済', required_count: 0 },
+    { shift_slot_id: 'sPublished', role: '加入', required_count: 0 },
   ],
   assignmentRows: [
     { shift_slot_id: 'sPublished', user_id: 'u1', role: '受付' },
@@ -183,8 +183,8 @@ check(
   { required: 1, assigned: 1 }
 );
 check(
-  'required_count=0 の共済は出ない',
-  a.shortfalls.some((s) => s.role === '共済'),
+  'required_count=0 の加入は出ない',
+  a.shortfalls.some((s) => s.role === '加入'),
   false
 );
 check(

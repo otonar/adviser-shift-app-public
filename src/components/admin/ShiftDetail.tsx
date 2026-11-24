@@ -784,7 +784,15 @@ export default function ShiftDetail({ shiftId }: { shiftId: string }) {
                           }}
                           className="rounded border px-2 py-1"
                         >
-                          {[...roles, NO_ROLE].map((r) => (
+                          {/* 今の一覧に無い役割（名前を変える前の「共済」など）は、その人の分だけ選択肢に残す。
+                              無いと選択欄が別の役割を表示し、気づかないまま書き換わる */}
+                          {[
+                            ...roles,
+                            NO_ROLE,
+                            ...((roles as readonly string[]).includes(a.role) || a.role === NO_ROLE
+                              ? []
+                              : [a.role]),
+                          ].map((r) => (
                             <option key={r} value={r}>
                               {r}
                             </option>
@@ -999,7 +1007,7 @@ export default function ShiftDetail({ shiftId }: { shiftId: string }) {
                 value={infoForm.title}
                 onChange={(e) => setInfoForm({ ...infoForm, title: e.target.value })}
                 maxLength={50}
-                placeholder={slot.slot_type === 'training' ? '例: 共済研修' : '例: 入学式'}
+                placeholder={slot.slot_type === 'training' ? '例: PC研修' : '例: 入学式'}
                 className="rounded border px-3 py-2"
               />
             </label>

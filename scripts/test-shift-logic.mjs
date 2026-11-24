@@ -83,13 +83,15 @@ check('当日枠の役割', rolesForSlotType('day'), [
   '受付',
   'アテンド',
   'PC',
-  '共済',
+  '加入',
+  'ミルパス',
   '学び',
 ]);
 check('研修枠の役割', rolesForSlotType('training'), [
   'コアメンバー',
   'PC',
-  '共済',
+  '加入',
+  'ミルパス',
   '学び',
 ]);
 
@@ -137,25 +139,25 @@ check('研修枠の役割', rolesForSlotType('training'), [
 }
 
 // --- 希少な役割が先に埋まる -------------------------------------------------
-// 「共済」ができるのは a だけ。a は「受付」もできるが、受付は b も c もできる。
-// 先に多い方から埋めると a が受付に取られて共済が空く。少ない順に埋めれば埋まる。
+// 「加入」ができるのは a だけ。a は「受付」もできるが、受付は b も c もできる。
+// 先に多い方から埋めると a が受付に取られて加入が空く。少ない順に埋めれば埋まる。
 {
   const users = [
-    { userId: 'a', dayRoles: ['受付', '共済'], trainingRoles: [] },
+    { userId: 'a', dayRoles: ['受付', '加入'], trainingRoles: [] },
     { userId: 'b', dayRoles: ['受付'], trainingRoles: [] },
     { userId: 'c', dayRoles: ['受付'], trainingRoles: [] },
   ];
   const submissions = users.map((u) => ({ userId: u.userId, available: true }));
   const reqs = [
     { role: '受付', requiredCount: 2 },
-    { role: '共済', requiredCount: 1 },
+    { role: '加入', requiredCount: 1 },
   ];
   let kyosaiFilled = true;
   let aInKyosai = true;
   for (let i = 0; i < ITERATIONS; i++) {
     const r = assignRoles('day', reqs, submissions, users);
-    if (r.filter((x) => x.role === '共済').length !== 1) kyosaiFilled = false;
-    if (!r.some((x) => x.userId === 'a' && x.role === '共済')) aInKyosai = false;
+    if (r.filter((x) => x.role === '加入').length !== 1) kyosaiFilled = false;
+    if (!r.some((x) => x.userId === 'a' && x.role === '加入')) aInKyosai = false;
   }
   ok('希少な役割（担当できる人が少ない）から先に埋まる', kyosaiFilled);
   ok('唯一の担当可能者が希少な役割に入る', aInKyosai);

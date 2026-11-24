@@ -42,7 +42,7 @@ async function postHandler(_req: Request, { params }: Params) {
     .select('user_id, role, users(name, line_user_id, is_active)')
     .eq('shift_slot_id', slotId);
 
-  // タイトルがあれば「10/10 13:00〜16:00 共済研修」のように何の枠かも伝える
+  // タイトルがあれば「10/10 13:00〜16:00 PC研修」のように何の枠かも伝える
   const when = slotWhen(slot);
   const buildMessage = (role: string) => confirmedMessage(when, role);
 

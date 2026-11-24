@@ -99,8 +99,8 @@ console.log('\n■ 直近のシフト（buildNextShiftsReply）');
   const roles = [
     { role: '受付', date: '2026-09-20', start_time: '09:00:00', end_time: '12:00:00', slot_type: 'day' }, // 過去
     { role: 'PC', date: '2026-10-10', start_time: '13:00:00', end_time: '16:00:00', slot_type: 'training' },
-    { role: '役割なし', date: '2026-10-03', start_time: '09:00:00', end_time: '12:00:00', slot_type: 'training', title: '共済研修' },
-    { role: '共済', date: TODAY, start_time: '10:00:00', end_time: '15:00:00', slot_type: 'day' }, // 今日
+    { role: '役割なし', date: '2026-10-03', start_time: '09:00:00', end_time: '12:00:00', slot_type: 'training', title: 'PC研修' },
+    { role: '加入', date: TODAY, start_time: '10:00:00', end_time: '15:00:00', slot_type: 'day' }, // 今日
   ];
   const text = buildNextShiftsReply(roles, TODAY, APP);
   const lines = text.split('\n');
@@ -109,7 +109,7 @@ console.log('\n■ 直近のシフト（buildNextShiftsReply）');
   ok('近い順（10/3 が 10/10 より先）', text.indexOf('10/3') < text.indexOf('10/10'), text);
   ok('役割なしは「役割の指定なし」と書く', text.includes('役割の指定なし') && !text.includes('役割: 役割なし'), text);
   ok('研修の表示名（タイトルなしは種別だけ）', text.includes('10/10(土) 13:00〜16:00（研修）\n'), text);
-  ok('タイトルがあれば種別の後ろに出す', text.includes('10/3(土) 09:00〜12:00（研修）共済研修\n'), text);
+  ok('タイトルがあれば種別の後ろに出す', text.includes('10/3(土) 09:00〜12:00（研修）PC研修\n'), text);
   ok('役割の一覧へのリンク', text.endsWith(`${APP}/dashboard/my-roles`), text);
   ok('3件以下なら「ほか」は出ない', !text.includes('ほか'), text);
 }
