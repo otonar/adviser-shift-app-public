@@ -59,7 +59,7 @@ export default function SurveyManager() {
           <Link
             key={s.id}
             href={`/admin/surveys/${s.id}`}
-            className="rounded border bg-white p-4 hover:bg-gray-50"
+            className="press-row rounded border bg-white p-4 hover:bg-gray-50"
           >
             <div className="flex flex-wrap items-center gap-2 text-xs">
               <span

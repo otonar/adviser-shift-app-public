@@ -162,7 +162,7 @@ export default function MemberManager() {
           </ul>
           {shownInactive.length > 0 && (
             <details>
-              <summary className="cursor-pointer rounded border bg-white px-3 py-2 text-sm text-gray-600">
+              <summary className="press-row cursor-pointer rounded border bg-white px-3 py-2 text-sm text-gray-600">
                 脱退済み（{shownInactive.length}名）
               </summary>
               <ul className="mt-2 divide-y rounded border bg-white">
@@ -220,7 +220,7 @@ function MemberRow({
         type="button"
         onClick={onToggle}
         aria-expanded={open}
-        className="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left hover:bg-gray-50"
+        className="press-row flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left hover:bg-gray-50"
       >
         <span className="min-w-0">
           <span className={`font-medium ${member.is_active ? '' : 'text-gray-500'}`}>
