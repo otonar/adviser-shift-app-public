@@ -11,6 +11,9 @@ import {
 import { ABSENCE_REASON_MAX } from '@/lib/absence';
 import { useFlash, FlashMessage } from '@/components/ui/Flash';
 import CardSkeleton from '@/components/ui/CardSkeleton';
+import { CalendarIcon } from '@/components/ui/NavIcons';
+import { buildCalendarEntries } from '@/lib/calendar';
+import ShiftCalendar from './ShiftCalendar';
 
 type Slot = {
   id: string;
@@ -47,14 +50,17 @@ type View = 'submit' | 'roles';
 function SlotHeading({
   slot,
 }: {
-  slot: Pick<Slot, 'date' | 'slot_type' | 'start_time' | 'end_time'> & { title?: string | null };
+  slot: Pick<Slot, 'date' | 'slot_type' | 'start_time' | 'end_time'> & {
+    title?: string | null;
+  };
 }) {
   return (
     <div className="min-w-0">
       <p className="font-bold">
         {formatDateJa(slot.date)}
         <span className="ml-1 text-sm font-normal text-gray-600">
-          {formatTimeRange(slot.start_time, slot.end_time)}・{SLOT_TYPE_LABEL[slot.slot_type]}
+          {formatTimeRange(slot.start_time, slot.end_time)}・
+          {SLOT_TYPE_LABEL[slot.slot_type]}
         </span>
       </p>
       {slot.title && <p className="font-bold">{slot.title}</p>}
@@ -103,16 +109,21 @@ function AnswerButtons({
 function ShiftCard({
   slot,
   highlight,
+  focused = false,
   onSaved,
 }: {
   slot: Slot;
   highlight: boolean;
+  // カレンダーの「答える」から来たとき、どのカードか分かるよう一時的に枠を付ける
+  focused?: boolean;
   onSaved: () => void;
 }) {
   const savedNote = slot.submission?.note ?? '';
   const [note, setNote] = useState(savedNote);
   // 押した直後から選択状態を見せる（サーバーの応答を待たない）。失敗したら戻す。
-  const [current, setCurrent] = useState<boolean | null>(slot.submission?.available ?? null);
+  const [current, setCurrent] = useState<boolean | null>(
+    slot.submission?.available ?? null
+  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { message, flash } = useFlash();
@@ -165,9 +176,10 @@ function ShiftCard({
 
   return (
     <div
-      className={`rounded border bg-white p-4 ${
+      id={`slot-${slot.id}`}
+      className={`scroll-mt-4 rounded border bg-white p-4 transition-shadow ${
         highlight && current === null ? 'border-l-4 border-l-amber-400' : ''
-      }`}
+      } ${focused ? 'ring-2 ring-accent ring-offset-2' : ''}`}
     >
       <div className="flex items-start justify-between gap-2">
         <SlotHeading slot={slot} />
@@ -177,7 +189,9 @@ function ShiftCard({
           </span>
         )}
       </div>
-      <p className="text-xs text-gray-500">提出期限 {formatDeadlineJst(slot.deadline)} まで</p>
+      <p className="text-xs text-gray-500">
+        提出期限 {formatDeadlineJst(slot.deadline)} まで
+      </p>
       {slot.note && <p className="mt-1 text-sm text-gray-500">{slot.note}</p>}
 
       <div className="mt-3 flex flex-col gap-2">
@@ -207,7 +221,9 @@ function ShiftCard({
           )}
         </div>
         {current === null && noteDirty && (
-          <p className="text-xs text-gray-500">○ か × を押すと、備考も一緒に送られます。</p>
+          <p className="text-xs text-gray-500">
+            ○ か × を押すと、備考も一緒に送られます。
+          </p>
         )}
         {saving && <p className="text-sm text-gray-500">保存中…</p>}
         {!saving && <FlashMessage message={message} />}
@@ -267,7 +283,8 @@ function AbsenceBox({ slot, onSaved }: { slot: Slot; onSaved: () => void }) {
         setError(data.error ?? '送信に失敗しました');
         return;
       }
-      const done = method === 'POST' ? '欠席を連絡しました' : '欠席連絡を取り消しました';
+      const done =
+        method === 'POST' ? '欠席を連絡しました' : '欠席連絡を取り消しました';
       // 誰に届いたかは後から確かめたいことなので、自動では消さない
       setMessage(
         data.notified > 0
@@ -286,7 +303,9 @@ function AbsenceBox({ slot, onSaved }: { slot: Slot; onSaved: () => void }) {
 
   const feedback = (
     <>
-      {message && <p className="mt-2 text-sm font-bold text-green-700">{message}</p>}
+      {message && (
+        <p className="mt-2 text-sm font-bold text-green-700">{message}</p>
+      )}
       {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
     </>
   );
@@ -295,13 +314,19 @@ function AbsenceBox({ slot, onSaved }: { slot: Slot; onSaved: () => void }) {
     return (
       <div className="mt-2 rounded border border-red-200 bg-red-50 p-3 text-sm">
         <p className="font-bold text-red-800">欠席を連絡済み</p>
-        <p className="mt-1 whitespace-pre-wrap text-gray-700">理由: {slot.absence.reason}</p>
+        <p className="mt-1 whitespace-pre-wrap text-gray-700">
+          理由: {slot.absence.reason}
+        </p>
         {slot.can_cancel_absence && (
           <button
             type="button"
             disabled={saving}
             onClick={() => {
-              if (window.confirm('欠席連絡を取り消して、出勤する扱いに戻しますか？コアメンバーにも LINE で知らせます。')) {
+              if (
+                window.confirm(
+                  '欠席連絡を取り消して、出勤する扱いに戻しますか？コアメンバーにも LINE で知らせます。'
+                )
+              ) {
                 void send('DELETE');
               }
             }}
@@ -372,7 +397,13 @@ function AbsenceBox({ slot, onSaved }: { slot: Slot; onSaved: () => void }) {
 }
 
 // 未回答の枠をまとめて ○ / × にする。押した瞬間に保存（答えてある枠は変えない）。
-function BulkAnswer({ slots, onSaved }: { slots: Slot[]; onSaved: () => void }) {
+function BulkAnswer({
+  slots,
+  onSaved,
+}: {
+  slots: Slot[];
+  onSaved: () => void;
+}) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { message, flash } = useFlash();
@@ -451,7 +482,10 @@ function Collapsible({
         <span>
           {title}（{count}件）
         </span>
-        <span aria-hidden="true" className="text-gray-400 group-open:rotate-180">
+        <span
+          aria-hidden="true"
+          className="text-gray-400 group-open:rotate-180"
+        >
           ▼
         </span>
       </summary>
@@ -498,7 +532,9 @@ function MyRoles({
   onSaved: () => void;
 }) {
   if (roles.length === 0) {
-    return <p className="text-sm text-gray-500">確定した予定はまだありません。</p>;
+    return (
+      <p className="text-sm text-gray-500">確定した予定はまだありません。</p>
+    );
   }
   const today = todayJst();
   const upcoming = roles.filter((r) => r.date >= today);
@@ -508,18 +544,30 @@ function MyRoles({
   return (
     <div className="flex flex-col gap-3">
       {upcoming.length === 0 ? (
-        <p className="text-sm text-gray-500">これからの確定した予定はありません。</p>
+        <p className="text-sm text-gray-500">
+          これからの確定した予定はありません。
+        </p>
       ) : (
         <ul className="flex flex-col gap-2">
           {upcoming.map((r) => (
-            <RoleCard key={r.slot_id} role={r} slot={slotsById.get(r.slot_id)} onSaved={onSaved} />
+            <RoleCard
+              key={r.slot_id}
+              role={r}
+              slot={slotsById.get(r.slot_id)}
+              onSaved={onSaved}
+            />
           ))}
         </ul>
       )}
       <Collapsible title="終わったシフト" count={past.length}>
         <ul className="flex flex-col gap-2">
           {past.map((r) => (
-            <RoleCard key={r.slot_id} role={r} slot={undefined} onSaved={onSaved} />
+            <RoleCard
+              key={r.slot_id}
+              role={r}
+              slot={undefined}
+              onSaved={onSaved}
+            />
           ))}
         </ul>
       </Collapsible>
@@ -544,7 +592,12 @@ export default function StaffShifts({
   const [error, setError] = useState<string | null>(null);
   // 開いた時点で未回答だった枠。答えてもその場では並びを変えない
   // （押したカードが別の場所へ飛んで行くと、保存できたか見失うため）。
-  const [firstUnanswered, setFirstUnanswered] = useState<Set<string> | null>(null);
+  const [firstUnanswered, setFirstUnanswered] = useState<Set<string> | null>(
+    null
+  );
+  const [calendarOpen, setCalendarOpen] = useState(false);
+  // カレンダーの「答える」で移動してきた枠（数秒だけ枠を付ける）
+  const [focusSlotId, setFocusSlotId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -558,7 +611,11 @@ export default function StaffShifts({
       setError(null);
       setSlots(list);
       setFirstUnanswered(
-        (cur) => cur ?? new Set(list.filter((s) => !s.expired && !s.submission).map((s) => s.id))
+        (cur) =>
+          cur ??
+          new Set(
+            list.filter((s) => !s.expired && !s.submission).map((s) => s.id)
+          )
       );
     } catch {
       setError('通信エラーが発生しました');
@@ -572,6 +629,27 @@ export default function StaffShifts({
       await load();
     })();
   }, [load]);
+
+  // 「答える」で移動したら、そのカードを画面の真ん中へ。枠は少しして消す
+  useEffect(() => {
+    if (!focusSlotId || view !== 'submit') return;
+    const raf = requestAnimationFrame(() => {
+      document
+        .getElementById(`slot-${focusSlotId}`)
+        ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+    const timer = setTimeout(() => setFocusSlotId(null), 2500);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(timer);
+    };
+  }, [focusSlotId, view]);
+
+  function answerFromCalendar(slotId: string) {
+    setCalendarOpen(false);
+    changeView('submit');
+    setFocusSlotId(slotId);
+  }
 
   function changeView(next: View) {
     setView(next);
@@ -589,11 +667,18 @@ export default function StaffShifts({
   const openSlots = slots
     .filter((s) => !s.expired)
     // 開いた時点で未回答だったものを上へ（同じグループ内は API の並び＝日付の近い順）
-    .sort((a, b) => Number(unansweredSet.has(b.id)) - Number(unansweredSet.has(a.id)));
+    .sort(
+      (a, b) =>
+        Number(unansweredSet.has(b.id)) - Number(unansweredSet.has(a.id))
+    );
   const unansweredNow = openSlots.filter((s) => !s.submission);
   // 期限切れのうち、確定した役割に入っているものは役割側に出すのでここには出さない
   const expiredSlots = slots.filter((s) => s.expired && !roleSlotIds.has(s.id));
-  const expiredActionable = expiredSlots.some((s) => s.absence || s.can_report_absence);
+  const expiredActionable = expiredSlots.some(
+    (s) => s.absence || s.can_report_absence
+  );
+
+  const calendarEntries = buildCalendarEntries(myRoles, slots);
 
   const tabs: { id: View; label: string; badge?: number }[] = [
     { id: 'submit', label: '希望を出す', badge: unansweredNow.length },
@@ -603,34 +688,59 @@ export default function StaffShifts({
   return (
     <div className="flex flex-col gap-4">
       <h1 className="sr-only">シフト</h1>
-      <div role="tablist" className="flex gap-1 rounded border bg-white p-1">
-        {tabs.map((t) => {
-          const active = view === t.id;
-          return (
-            <button
-              key={t.id}
-              type="button"
-              role="tab"
-              aria-selected={active}
-              onClick={() => changeView(t.id)}
-              className={`flex-1 rounded px-3 py-2.5 text-sm ${
-                active ? 'bg-accent font-bold text-white' : 'text-gray-600'
-              }`}
-            >
-              {t.label}
-              {!!t.badge && (
-                <span
-                  className={`ml-1 rounded-full px-1.5 text-xs ${
-                    active ? 'bg-white text-accent' : 'bg-amber-100 text-amber-800'
-                  }`}
-                >
-                  {t.badge}
-                </span>
-              )}
-            </button>
-          );
-        })}
+      <div className="flex items-stretch gap-2">
+        <div
+          role="tablist"
+          className="flex flex-1 gap-1 rounded border bg-white p-1"
+        >
+          {tabs.map((t) => {
+            const active = view === t.id;
+            return (
+              <button
+                key={t.id}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() => changeView(t.id)}
+                className={`flex-1 rounded px-3 py-2.5 text-sm ${
+                  active ? 'bg-accent font-bold text-white' : 'text-gray-600'
+                }`}
+              >
+                {t.label}
+                {!!t.badge && (
+                  <span
+                    className={`ml-1 rounded-full px-1.5 text-xs ${
+                      active
+                        ? 'bg-white text-accent'
+                        : 'bg-amber-100 text-amber-800'
+                    }`}
+                  >
+                    {t.badge}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+        {/* カレンダー（シフトのある日に色が付いた月表示）。一覧の右上の隅に置く */}
+        <button
+          type="button"
+          onClick={() => setCalendarOpen(true)}
+          aria-label="カレンダーで見る"
+          title="カレンダーで見る"
+          disabled={loading}
+          className="flex w-12 shrink-0 items-center justify-center rounded border bg-white text-accent disabled:opacity-50"
+        >
+          <CalendarIcon className="h-6 w-6" />
+        </button>
       </div>
+
+      <ShiftCalendar
+        open={calendarOpen}
+        entries={calendarEntries}
+        onClose={() => setCalendarOpen(false)}
+        onAnswer={answerFromCalendar}
+      />
 
       {error && <p className="text-sm text-red-600">{error}</p>}
 
@@ -644,14 +754,19 @@ export default function StaffShifts({
             <p className="text-sm text-gray-500">対象のシフトはありません。</p>
           )}
           {slots.length > 0 && openSlots.length === 0 && (
-            <p className="text-sm text-gray-500">提出できる（期限内の）シフトはありません。</p>
+            <p className="text-sm text-gray-500">
+              提出できる（期限内の）シフトはありません。
+            </p>
           )}
-          {unansweredNow.length >= 2 && <BulkAnswer slots={unansweredNow} onSaved={load} />}
+          {unansweredNow.length >= 2 && (
+            <BulkAnswer slots={unansweredNow} onSaved={load} />
+          )}
           {openSlots.map((slot) => (
             <ShiftCard
               key={slot.id}
               slot={slot}
               highlight={unansweredSet.has(slot.id)}
+              focused={focusSlotId === slot.id}
               onSaved={load}
             />
           ))}
