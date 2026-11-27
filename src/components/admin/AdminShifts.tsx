@@ -16,6 +16,7 @@ import {
   todayJst,
 } from '@/lib/datetime';
 import StatusBadge from '../ui/StatusBadge';
+import { MAX_SESSIONS, sessionNumbers } from '@/lib/session-roles';
 import { useFlash, FlashMessage } from '../ui/Flash';
 
 type Slot = {
@@ -29,6 +30,8 @@ type Slot = {
   assignment_status: 'open' | 'draft' | 'published';
   // title 列を追加する前の DB では返ってこないので省略可にしている
   title?: string | null;
+  // 1日の中の回数（migration 013 より前の DB では返らない）
+  session_count?: number;
   note: string | null;
   // 提出の進み具合（今日以降の枠だけ API が数える。終わった枠は null）
   progress?: { targets: number; submitted: number; available: number } | null;
@@ -49,6 +52,7 @@ function SlotRow({ slot }: { slot: Slot }) {
           <span className="font-bold">{formatDateJa(slot.date)}</span>{' '}
           <span className="text-sm text-gray-600">
             {formatTimeRange(slot.start_time, slot.end_time)}・{SLOT_TYPE_LABEL[slot.slot_type]}
+            {(slot.session_count ?? 1) > 1 && `・全${slot.session_count}回`}
           </span>
           {/* 何の枠か見分けるための行。タイトルが無い枠は備考で代用する */}
           {(slot.title || slot.note) && (
@@ -90,6 +94,8 @@ export default function AdminShifts() {
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
   const [title, setTitle] = useState('');
+  // 1日の中の回数。回ごとに役割を割り振る（1 なら今までどおり1日1役割）
+  const [sessionCount, setSessionCount] = useState(1);
   // 提出期限。手で選ぶまでは空（＝送らない）で、サーバが各枠の日付の14日前にする。
   const [deadlineInput, setDeadlineInput] = useState('');
   const [note, setNote] = useState('');
@@ -159,6 +165,7 @@ export default function AdminShifts() {
           start_time: startTime,
           end_time: endTime,
           title: title.trim() || undefined,
+          session_count: sessionCount,
           deadline_date: deadlineInput || undefined,
           note: note || undefined,
           target_user_ids: Array.from(selected),
@@ -176,6 +183,7 @@ export default function AdminShifts() {
       setStartTime('');
       setEndTime('');
       setTitle('');
+      setSessionCount(1);
       setDeadlineInput('');
       setNote('');
       setSelected(new Set());
@@ -286,6 +294,23 @@ export default function AdminShifts() {
               <TimeSelect value={endTime} onChange={setEndTime} required />
             </label>
           </div>
+          <label className="flex flex-col gap-1 text-sm">
+            回数（1日の中で役割を交代するとき）
+            <select
+              value={sessionCount}
+              onChange={(e) => setSessionCount(Number(e.target.value))}
+              className="rounded border px-3 py-2"
+            >
+              {sessionNumbers(MAX_SESSIONS).map((n) => (
+                <option key={n} value={n}>
+                  {n === 1 ? '1回（交代なし）' : `${n}回`}
+                </option>
+              ))}
+            </select>
+            <span className="text-xs text-gray-400">
+              2回以上にすると、必要人数と役割を「1回目」「2回目」…ごとに決められます。希望（○×）は日単位のままです。
+            </span>
+          </label>
           <label className="flex flex-col gap-1 text-sm">
             提出期限（この日の 23:59 まで）
             <input

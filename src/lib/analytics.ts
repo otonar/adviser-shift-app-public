@@ -27,14 +27,17 @@ export type SubmissionRow = {
   user_id: string;
   available: boolean;
 };
+// session（何回目か。migration 013）は省略すると 1回目
 export type RequirementRow = {
   shift_slot_id: string;
+  session?: number;
   role: string;
   required_count: number;
 };
 export type AssignmentRow = {
   shift_slot_id: string;
   user_id: string;
+  session?: number;
   role: string;
 };
 
@@ -70,7 +73,7 @@ export type MemberSubmissionRow = {
   submitted: number;
 };
 
-/** メンバーごとの役割の割り当て回数（確定済みの枠のみ）。 */
+/** メンバーごとの役割の割り当て回数（確定済みの枠のみ。1日に複数回ある枠は回ごとに数える）。 */
 export type RoleBalanceRow = {
   userId: string;
   name: string;
@@ -85,7 +88,7 @@ export type RoleShortfallRow = {
   slotType: SlotType;
   required: number;
   assigned: number;
-  /** 足りていない枠の数。 */
+  /** 足りていない枠の数（1日に複数回ある枠は回ごとに数える）。 */
   shortSlots: number;
 };
 
@@ -215,13 +218,13 @@ export function computeAnalytics(input: AnalyticsInput): Analytics {
   // --- 4. 欠員傾向 --------------------------------------------------------
   // 必要人数（required_count）に対して、実際に割り振れた人数がどれだけ足りたか。
   // 対象は「割り振りが済んでいる枠」＝ draft と published（open はまだ割り振り前）。
-  const assignedCount = new Map<string, number>(); // `${slotId}:${role}` → 人数
+  const assignedCount = new Map<string, number>(); // `${slotId}:${session}:${role}` → 人数
   for (const a of assignmentRows) {
     if (a.role === NO_ROLE) continue; // 役割なしは必要人数の充足に数えない
     // 脱退した人は「埋まっている」に数えない。脱退しても割り振りの行は残るので、
     // 数えてしまうと実際は欠員なのに充足して見える（＝欠員に気づけなくなる）。
     if (!activeIds.has(a.user_id)) continue;
-    const key = `${a.shift_slot_id}:${a.role}`;
+    const key = `${a.shift_slot_id}:${a.session ?? 1}:${a.role}`;
     assignedCount.set(key, (assignedCount.get(key) ?? 0) + 1);
   }
   const shortfallMap = new Map<string, RoleShortfallRow>();
@@ -231,7 +234,7 @@ export function computeAnalytics(input: AnalyticsInput): Analytics {
     if (slot.assignment_status === 'open') continue;
     if (r.required_count <= 0) continue;
 
-    const assigned = assignedCount.get(`${r.shift_slot_id}:${r.role}`) ?? 0;
+    const assigned = assignedCount.get(`${r.shift_slot_id}:${r.session ?? 1}:${r.role}`) ?? 0;
     const key = `${slot.slot_type}:${r.role}`;
     const cur =
       shortfallMap.get(key) ??

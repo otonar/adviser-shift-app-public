@@ -170,7 +170,7 @@ export default async function AdminAnalyticsPage() {
         <div>
           <h2 className="font-bold">役割ごとの充足</h2>
           <p className="text-xs text-gray-500">
-            割り振り済み（調整中・確定）の枠が対象。必要人数に対して実際に埋まった人数です。
+            割り振り済み（調整中・確定）の枠が対象。必要人数に対して実際に埋まった人数です。1日に複数回ある枠は回ごとに数えます。
           </p>
         </div>
         {data.shortfalls.length === 0 ? (
@@ -225,7 +225,7 @@ export default async function AdminAnalyticsPage() {
         <div>
           <h2 className="font-bold">役割の偏り</h2>
           <p className="text-xs text-gray-500">
-            確定済みの枠での割り当て回数。多い順なので、下に「まだ一度も入っていない人」が並びます。
+            確定済みの枠での割り当て回数（1日に複数回ある枠は回ごとに数えます）。多い順なので、下に「まだ一度も入っていない人」が並びます。
           </p>
         </div>
         {data.roleBalance.length === 0 ? (

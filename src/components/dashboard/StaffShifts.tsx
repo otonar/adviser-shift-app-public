@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { NO_ROLE, SLOT_TYPE_LABEL } from '@/types';
+import { SLOT_TYPE_LABEL } from '@/types';
+import RoleText from '@/components/ui/RoleText';
 import {
   formatDeadlineJst,
   formatDateJa,
@@ -36,7 +37,7 @@ type Slot = {
 // 確定した役割（published のみ・サーバー側で取得して渡される）
 export type MyRole = {
   slot_id: string;
-  role: string;
+  roles: string[]; // 回の順
   date: string;
   start_time: string;
   end_time: string;
@@ -507,16 +508,9 @@ function RoleCard({
   return (
     <li className="rounded border bg-white p-4">
       <SlotHeading slot={role} />
-      {role.role === NO_ROLE ? (
-        <p className="mt-1">
-          <span className="font-bold">出勤</span>
-          <span className="text-sm text-gray-500">（役割の指定なし）</span>
-        </p>
-      ) : (
-        <p className="mt-1">
-          役割: <span className="font-bold">{role.role}</span>
-        </p>
-      )}
+      <p className="mt-1">
+        <RoleText roles={role.roles} noteClassName="text-sm text-gray-500" />
+      </p>
       {slot && <AbsenceBox slot={slot} onSaved={onSaved} />}
     </li>
   );

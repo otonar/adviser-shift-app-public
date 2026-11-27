@@ -31,8 +31,8 @@ export async function fetchAnalytics(): Promise<Analytics> {
       supabase.from('shift_submissions').select('shift_slot_id, user_id, available'),
       supabase
         .from('shift_role_requirements')
-        .select('shift_slot_id, role, required_count'),
-      supabase.from('shift_assignments').select('shift_slot_id, user_id, role'),
+        .select('shift_slot_id, session, role, required_count'),
+      supabase.from('shift_assignments').select('shift_slot_id, user_id, session, role'),
     ]);
 
   for (const r of [users, slots, targets, submissions, requirements, assignments]) {

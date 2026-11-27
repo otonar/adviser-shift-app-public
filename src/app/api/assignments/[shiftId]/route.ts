@@ -1,6 +1,7 @@
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { authenticateAdmin, authenticateUser } from '@/lib/middleware';
 import { manualAssignmentSchema } from '@/lib/validators';
+import { validateSessionAssignments } from '@/lib/session-roles';
 import { jsonError, jsonOk, parseBody, verifyOrigin, forbiddenOrigin, withRoute, isUuid, notFound } from '@/lib/http';
 
 type Params = { params: Promise<{ shiftId: string }> };
@@ -15,11 +16,12 @@ async function getHandler(_req: Request, { params }: Params) {
     const supabase = getSupabaseAdmin();
     const { data } = await supabase
       .from('shift_assignments')
-      .select('user_id, role, users(name)')
-      .eq('shift_slot_id', slotId);
+      .select('user_id, session, role, users(name)')
+      .eq('shift_slot_id', slotId)
+      .order('session', { ascending: true });
     const assignments = (data ?? []).map((a) => {
       const u = Array.isArray(a.users) ? a.users[0] : a.users;
-      return { user_id: a.user_id, name: u?.name ?? '(不明)', role: a.role };
+      return { user_id: a.user_id, name: u?.name ?? '(不明)', session: a.session ?? 1, role: a.role };
     });
     return jsonOk({ assignments });
   }
@@ -41,8 +43,10 @@ async function getHandler(_req: Request, { params }: Params) {
     .from('shift_assignments')
     .select('role')
     .eq('shift_slot_id', slotId)
-    .eq('user_id', user.userId);
+    .eq('user_id', user.userId)
+    .order('session', { ascending: true });
 
+  // 回の順（1回目, 2回目…）
   return jsonOk({ roles: (data ?? []).map((a) => a.role) });
 }
 
@@ -57,9 +61,21 @@ async function patchHandler(req: Request, { params }: Params) {
 
   const parsed = await parseBody(req, manualAssignmentSchema);
   if (!parsed.ok) return parsed.response;
-  const { assignments } = parsed.data;
+  // session の既定（1）は zod が入れるが、型の上では省略可のままなので揃える
+  const assignments = parsed.data.assignments.map((a) => ({ ...a, session: a.session ?? 1 }));
 
   const supabase = getSupabaseAdmin();
+
+  // 入っている人は全部の回に1つずつ役割を持つこと（役割が無い回は「役割なし」）
+  const { data: slot, error: slotErr } = await supabase
+    .from('shift_slots')
+    .select('session_count')
+    .eq('id', slotId)
+    .maybeSingle();
+  if (slotErr) return jsonError('保存に失敗しました', 500, 'SAVE_FAILED');
+  if (!slot) return notFound('シフト枠が見つかりません');
+  const invalid = validateSessionAssignments(assignments, slot.session_count ?? 1);
+  if (invalid) return jsonError(invalid, 400, 'INVALID_SESSIONS');
 
   const { error: delError } = await supabase
     .from('shift_assignments')
@@ -71,6 +87,7 @@ async function patchHandler(req: Request, { params }: Params) {
     const rows = assignments.map((a) => ({
       shift_slot_id: slotId,
       user_id: a.userId,
+      session: a.session,
       role: a.role,
     }));
     const { error } = await supabase.from('shift_assignments').insert(rows);

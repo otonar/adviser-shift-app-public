@@ -18,12 +18,17 @@ export function rolesForSlotType(slotType: SlotType): readonly string[] {
  *  4. 各役割について対応可能なユーザーからランダムに必要人数を選出（1人1役割）
  *  5. 役割が付かなかった available ユーザーも「役割なし」で出勤扱いにする
  *     （役割の指定はないが当日来る人を名簿・通知から漏らさないため）
+ *
+ * history（任意）: 人ごとの「これまでの回でその役割をした回数」。渡すと、同じ役割の
+ * 回数が少ない人を先に選ぶ（同数の中ではランダム）。回ごとに役割を交代させるために使う
+ * （assignRolesBySession）。渡さなければ今までどおり完全にランダム。
  */
 export function assignRoles(
   slotType: SlotType,
   requirements: { role: string; requiredCount: number }[],
   submissions: { userId: string; available: boolean }[],
-  users: { userId: string; dayRoles: string[]; trainingRoles: string[] }[]
+  users: { userId: string; dayRoles: string[]; trainingRoles: string[] }[],
+  history?: Map<string, Map<string, number>>
 ): { userId: string; role: string }[] {
   // 1. available=true のユーザーだけ抽出
   const availableUserIds = new Set(
@@ -66,6 +71,11 @@ export function assignRoles(
       const j = Math.floor(Math.random() * (i + 1));
       [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
     }
+    // その役割をした回数が少ない人を先に（sort は安定なので同数はシャッフル順のまま）
+    if (history) {
+      const times = (userId: string) => history.get(userId)?.get(req.role) ?? 0;
+      candidates.sort((a, b) => times(a) - times(b));
+    }
 
     const selected = candidates.slice(0, req.requiredCount);
     for (const userId of selected) {
@@ -82,5 +92,35 @@ export function assignRoles(
     }
   }
 
+  return result;
+}
+
+/**
+ * 1日の中の回ごとの割り振り（migration 013）。
+ *
+ * ○×は枠単位なので、候補は全部の回で同じ。回ごとに assignRoles を回し、
+ * 前の回までにその役割をした回数が少ない人を優先する＝なるべく役割を交代させる
+ * （2026-11-27 本人回答）。その役割ができる人が足りなければ同じ人が続けて入る。
+ * 各回で役割が付かなかった人は、その回「役割なし」になる（全部の回に1行ずつある）。
+ */
+export function assignRolesBySession(
+  slotType: SlotType,
+  sessionCount: number,
+  requirements: { session: number; role: string; requiredCount: number }[],
+  submissions: { userId: string; available: boolean }[],
+  users: { userId: string; dayRoles: string[]; trainingRoles: string[] }[]
+): { userId: string; session: number; role: string }[] {
+  const history = new Map<string, Map<string, number>>();
+  const result: { userId: string; session: number; role: string }[] = [];
+  for (let session = 1; session <= Math.max(1, sessionCount); session++) {
+    const reqs = requirements.filter((r) => r.session === session);
+    for (const a of assignRoles(slotType, reqs, submissions, users, history)) {
+      result.push({ ...a, session });
+      if (a.role === NO_ROLE) continue;
+      const h = history.get(a.userId) ?? new Map<string, number>();
+      h.set(a.role, (h.get(a.role) ?? 0) + 1);
+      history.set(a.userId, h);
+    }
+  }
   return result;
 }

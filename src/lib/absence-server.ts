@@ -55,8 +55,8 @@ export type AbsenceListItem = {
   reason: string;
   created_at: string;
   user_name: string;
-  // 確定済みの割り振りがあればその役割（無ければ null）
-  role: string | null;
+  // 確定済みの割り振りがあればその役割（回の順。無ければ null）
+  roles: string[] | null;
   // 対応済み＝確定済みの枠で、割り振りに入っていない（外した・もともと入っていない）
   resolved: boolean;
   slot: {
@@ -107,17 +107,21 @@ export async function fetchUpcomingAbsences(): Promise<AbsenceListItem[]> {
   const publishedSlotIds = [
     ...new Set(rows.filter((x) => x.slot.assignment_status === 'published').map((x) => x.slot.id)),
   ];
-  const roleByKey = new Map<string, string>();
+  const rolesByKey = new Map<string, string[]>();
   if (publishedSlotIds.length > 0) {
     const { data: assigns } = await supabase
       .from('shift_assignments')
-      .select('user_id, shift_slot_id, role')
+      .select('user_id, shift_slot_id, session, role')
       .in('shift_slot_id', publishedSlotIds)
       .in(
         'user_id',
         rows.map((x) => x.r.user_id as string)
-      );
-    for (const a of assigns ?? []) roleByKey.set(`${a.shift_slot_id}:${a.user_id}`, a.role);
+      )
+      .order('session', { ascending: true });
+    for (const a of assigns ?? []) {
+      const key = `${a.shift_slot_id}:${a.user_id}`;
+      rolesByKey.set(key, [...(rolesByKey.get(key) ?? []), a.role as string]);
+    }
   }
 
   return rows
@@ -126,9 +130,9 @@ export async function fetchUpcomingAbsences(): Promise<AbsenceListItem[]> {
       reason: r.reason as string,
       created_at: r.created_at as string,
       user_name: one(r.users as { name: string } | { name: string }[] | null)?.name ?? '(不明)',
-      role: roleByKey.get(`${slot.id}:${r.user_id}`) ?? null,
+      roles: rolesByKey.get(`${slot.id}:${r.user_id}`) ?? null,
       resolved:
-        slot.assignment_status === 'published' && !roleByKey.has(`${slot.id}:${r.user_id}`),
+        slot.assignment_status === 'published' && !rolesByKey.has(`${slot.id}:${r.user_id}`),
       slot: {
         id: slot.id,
         date: slot.date,

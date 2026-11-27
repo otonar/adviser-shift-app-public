@@ -97,10 +97,10 @@ console.log('\n■ 直近のシフト（buildNextShiftsReply）');
 
 {
   const roles = [
-    { role: '受付', date: '2026-09-20', start_time: '09:00:00', end_time: '12:00:00', slot_type: 'day' }, // 過去
-    { role: 'PC', date: '2026-10-10', start_time: '13:00:00', end_time: '16:00:00', slot_type: 'training' },
-    { role: '役割なし', date: '2026-10-03', start_time: '09:00:00', end_time: '12:00:00', slot_type: 'training', title: 'PC研修' },
-    { role: '加入', date: TODAY, start_time: '10:00:00', end_time: '15:00:00', slot_type: 'day' }, // 今日
+    { roles: ['受付'], date: '2026-09-20', start_time: '09:00:00', end_time: '12:00:00', slot_type: 'day' }, // 過去
+    { roles: ['PC'], date: '2026-10-10', start_time: '13:00:00', end_time: '16:00:00', slot_type: 'training' },
+    { roles: ['役割なし'], date: '2026-10-03', start_time: '09:00:00', end_time: '12:00:00', slot_type: 'training', title: 'PC研修' },
+    { roles: ['加入'], date: TODAY, start_time: '10:00:00', end_time: '15:00:00', slot_type: 'day' }, // 今日
   ];
   const text = buildNextShiftsReply(roles, TODAY, APP);
   const lines = text.split('\n');
@@ -116,7 +116,7 @@ console.log('\n■ 直近のシフト（buildNextShiftsReply）');
 
 {
   const many = ['2026-10-02', '2026-10-03', '2026-10-04', '2026-10-05', '2026-10-06'].map((date) => ({
-    role: 'PC',
+    roles: ['PC'],
     date,
     start_time: '09:00:00',
     end_time: '12:00:00',
@@ -128,11 +128,24 @@ console.log('\n■ 直近のシフト（buildNextShiftsReply）');
 
 {
   const text = buildNextShiftsReply(
-    [{ role: '受付', date: '2026-09-20', start_time: '09:00:00', end_time: '12:00:00', slot_type: 'day' }],
+    [{ roles: ['受付'], date: '2026-09-20', start_time: '09:00:00', end_time: '12:00:00', slot_type: 'day' }],
     TODAY,
     APP
   );
   ok('これからのシフトが無ければ「ありません」', text.includes('確定しているこれからのシフトはありません'), text);
+}
+
+{
+  // 1日の中で役割を交代する枠（migration 013）
+  const base = { date: '2026-10-02', start_time: '09:00:00', end_time: '17:00:00', slot_type: 'day' };
+  const mixed = buildNextShiftsReply([{ ...base, roles: ['加入', '受付', '受付', 'アテンド'] }], TODAY, APP);
+  ok(
+    '回で役割が違えば回ごとに並べる',
+    mixed.includes('役割: 1回目「加入」・2回目「受付」・3回目「受付」・4回目「アテンド」'),
+    mixed
+  );
+  const same = buildNextShiftsReply([{ ...base, roles: ['受付', '受付'] }], TODAY, APP);
+  ok('全回同じ役割なら1つだけ書く', same.includes('　役割: 受付\n'), same);
 }
 
 // ===== 未提出の枠 =============================================================
