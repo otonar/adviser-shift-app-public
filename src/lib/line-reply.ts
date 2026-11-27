@@ -1,5 +1,6 @@
-import { NO_ROLE, SLOT_TYPE_LABEL, type SlotType } from '@/types';
+import { SLOT_TYPE_LABEL, type SlotType } from '@/types';
 import { formatDeadlineJst } from '@/lib/datetime';
+import { rolesSummary } from '@/lib/session-roles';
 
 // LINE のトークで送られてきた言葉に返す文面を作る（Webhook から使う）。
 //
@@ -82,7 +83,7 @@ function slotLabel(slotType: SlotType, title?: string | null): string {
 const MAX_ITEMS = 3;
 
 export type ReplyRole = {
-  role: string;
+  roles: string[]; // 回の順
   date: string;
   start_time: string;
   end_time: string;
@@ -112,7 +113,7 @@ export function buildNextShiftsReply(roles: ReplyRole[], today: string, appUrl: 
   }
 
   const lines = upcoming.slice(0, MAX_ITEMS).map((r) => {
-    const role = r.role === NO_ROLE ? '役割の指定なし' : `役割: ${r.role}`;
+    const role = rolesSummary(r.roles);
     const label = r.date === today ? '【今日】' : '';
     return `・${label}${formatDate(r.date)} ${timeRange(r.start_time, r.end_time)}${slotLabel(r.slot_type, r.title)}\n　${role}`;
   });

@@ -3,6 +3,7 @@ import { authenticateAdmin } from '@/lib/middleware';
 import { sendMulticast } from '@/lib/line';
 import { manualAssignmentSchema } from '@/lib/validators';
 import { rolesForSlotType } from '@/lib/role-assignment';
+import { validateSessionAssignments } from '@/lib/session-roles';
 import {
   diffAssignments,
   hasChanges,
@@ -32,20 +33,19 @@ async function postHandler(req: Request, { params }: Params) {
 
   const parsed = await parseBody(req, manualAssignmentSchema);
   if (!parsed.ok) return parsed.response;
-  const after = parsed.data.assignments;
-
-  // 1人1役割
-  if (new Set(after.map((a) => a.userId)).size !== after.length) {
-    return jsonError('同じ人が2回入っています', 400, 'DUPLICATE_USER');
-  }
+  // session の既定（1）は zod が入れるが、型の上では省略可のままなので揃える
+  const after = parsed.data.assignments.map((a) => ({ ...a, session: a.session ?? 1 }));
 
   const supabase = getSupabaseAdmin();
   const { data: slot } = await supabase
     .from('shift_slots')
-    .select('date, start_time, end_time, title, slot_type, assignment_status')
+    .select('date, start_time, end_time, title, slot_type, session_count, assignment_status')
     .eq('id', slotId)
     .maybeSingle();
   if (!slot) return notFound('シフト枠が見つかりません');
+  // 1人1回1役割で、入っている人は全部の回を持つ
+  const invalid = validateSessionAssignments(after, slot.session_count ?? 1);
+  if (invalid) return jsonError(invalid, 400, 'INVALID_SESSIONS');
   if (slot.assignment_status !== 'published') {
     return jsonError('確定済みの枠ではありません。調整中の枠は「確定せずに保存」か「確定して LINE で知らせる」を使ってください', 400, 'NOT_PUBLISHED');
   }
@@ -53,8 +53,9 @@ async function postHandler(req: Request, { params }: Params) {
   const [{ data: beforeRows, error: beforeErr }, { data: targetRows }] = await Promise.all([
     supabase
       .from('shift_assignments')
-      .select('user_id, role, users(name, line_user_id, is_active)')
-      .eq('shift_slot_id', slotId),
+      .select('user_id, session, role, users(name, line_user_id, is_active)')
+      .eq('shift_slot_id', slotId)
+      .order('session', { ascending: true }),
     supabase
       .from('shift_target_users')
       .select('user_id, users(name, line_user_id, is_active)')
@@ -86,7 +87,11 @@ async function postHandler(req: Request, { params }: Params) {
     if (u) userInfo.set(b.user_id, u);
   }
 
-  const before = (beforeRows ?? []).map((b) => ({ userId: b.user_id as string, role: b.role as string }));
+  const before = (beforeRows ?? []).map((b) => ({
+    userId: b.user_id as string,
+    session: (b.session as number | null) ?? 1,
+    role: b.role as string,
+  }));
   const diff = diffAssignments(before, after);
   if (!hasChanges(diff)) return jsonOk({ ok: true, changed: false, notified: 0, unnotified: [] });
 
@@ -98,27 +103,24 @@ async function postHandler(req: Request, { params }: Params) {
     }
   }
 
-  // 変更があった行だけを書き換える（変わらない人の行には触らない）
-  if (diff.removed.length > 0) {
+  // 変更があった人の行だけを書き換える（変わらない人の行には触らない）。
+  // 役割が変わった人は回ごとの行をまとめて入れ直す（どの回が変わったかを個別に追わない）
+  const rewriteIds = [...diff.removed, ...diff.changed].map((r) => r.userId);
+  if (rewriteIds.length > 0) {
     const { error } = await supabase
       .from('shift_assignments')
       .delete()
       .eq('shift_slot_id', slotId)
-      .in('user_id', diff.removed.map((r) => r.userId));
+      .in('user_id', rewriteIds);
     if (error) return jsonError('保存に失敗しました', 500, 'SAVE_FAILED');
   }
-  for (const c of diff.changed) {
-    const { error } = await supabase
-      .from('shift_assignments')
-      .update({ role: c.to })
-      .eq('shift_slot_id', slotId)
-      .eq('user_id', c.userId);
-    if (error) return jsonError('保存に失敗しました（一部だけ反映されている可能性があります。画面を読み込み直して確認してください）', 500, 'SAVE_FAILED');
-  }
-  if (diff.added.length > 0) {
-    const { error } = await supabase
-      .from('shift_assignments')
-      .insert(diff.added.map((a) => ({ shift_slot_id: slotId, user_id: a.userId, role: a.role })));
+  const insertIds = new Set([...diff.added, ...diff.changed].map((r) => r.userId));
+  if (insertIds.size > 0) {
+    const { error } = await supabase.from('shift_assignments').insert(
+      after
+        .filter((a) => insertIds.has(a.userId))
+        .map((a) => ({ shift_slot_id: slotId, user_id: a.userId, session: a.session, role: a.role }))
+    );
     if (error) return jsonError('保存に失敗しました（一部だけ反映されている可能性があります。画面を読み込み直して確認してください）', 500, 'SAVE_FAILED');
   }
   await supabase
@@ -129,7 +131,7 @@ async function postHandler(req: Request, { params }: Params) {
   // 変更があった人にだけ知らせる
   const when = slotWhen(slot);
   const messages: { userId: string; message: string }[] = [
-    ...diff.added.map((a) => ({ userId: a.userId, message: confirmedMessage(when, a.role) })),
+    ...diff.added.map((a) => ({ userId: a.userId, message: confirmedMessage(when, a.roles) })),
     ...diff.removed.map((r) => ({ userId: r.userId, message: removedMessage(when) })),
     ...diff.changed.map((c) => ({ userId: c.userId, message: roleChangedMessage(when, c.from, c.to) })),
   ];

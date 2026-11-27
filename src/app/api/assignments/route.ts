@@ -1,7 +1,7 @@
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { authenticateAdmin } from '@/lib/middleware';
 import { runAssignmentSchema } from '@/lib/validators';
-import { assignRoles } from '@/lib/role-assignment';
+import { assignRolesBySession } from '@/lib/role-assignment';
 import { jsonError, jsonOk, parseBody, verifyOrigin, forbiddenOrigin, withRoute } from '@/lib/http';
 import type { SlotType } from '@/types';
 
@@ -19,14 +19,14 @@ async function postHandler(req: Request) {
 
   const { data: slot } = await supabase
     .from('shift_slots')
-    .select('id, slot_type')
+    .select('id, slot_type, session_count')
     .eq('id', shift_slot_id)
     .maybeSingle();
   if (!slot) return jsonError('シフト枠が見つかりません', 404, 'NOT_FOUND');
 
   const { data: roleReqs } = await supabase
     .from('shift_role_requirements')
-    .select('role, required_count')
+    .select('session, role, required_count')
     .eq('shift_slot_id', shift_slot_id);
 
   // 対象スタッフ（役割属性込み）
@@ -55,9 +55,12 @@ async function postHandler(req: Request) {
     })
     .filter((u) => u.isActive);
 
-  const result = assignRoles(
+  // 回ごとに割り振る（回数1の枠は今までと同じ結果）。なるべく前の回と違う役割にする
+  const result = assignRolesBySession(
     slot.slot_type as SlotType,
+    slot.session_count ?? 1,
     (roleReqs ?? []).map((r) => ({
+      session: r.session ?? 1,
       role: r.role,
       requiredCount: r.required_count,
     })),
@@ -76,6 +79,7 @@ async function postHandler(req: Request) {
     const rows = result.map((r) => ({
       shift_slot_id,
       user_id: r.userId,
+      session: r.session,
       role: r.role,
     }));
     const { error } = await supabase.from('shift_assignments').insert(rows);
@@ -87,7 +91,8 @@ async function postHandler(req: Request) {
     .update({ assignment_status: 'draft', updated_at: new Date().toISOString() })
     .eq('id', shift_slot_id);
 
-  return jsonOk({ ok: true, assigned: result.length });
+  // assigned は割り振った人数（回ごとの行数ではなく）
+  return jsonOk({ ok: true, assigned: new Set(result.map((r) => r.userId)).size });
 }
 
 export const POST = withRoute(postHandler);

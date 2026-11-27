@@ -3,7 +3,8 @@ import { authenticateUser } from '@/lib/middleware';
 import { isCoreMember } from '@/lib/scope';
 import { fetchUpcomingAbsences, type AbsenceListItem } from '@/lib/absence-server';
 import { formatDateJa, formatDateTimeJst, formatTimeRange } from '@/lib/datetime';
-import { NO_ROLE, SLOT_TYPE_LABEL } from '@/types';
+import { SLOT_TYPE_LABEL } from '@/types';
+import { rolesSummary } from '@/lib/session-roles';
 
 // 欠席連絡の一覧（コアメンバーのみ）。LINE は連携済みの人にしか届かないので、
 // 未連携のコアメンバーもここで見られるようにしている。今日以降のシフトのぶんだけ出す。
@@ -54,10 +55,8 @@ export default async function AbsencesPage() {
                     対応済み（割り振りから外れています）
                   </span>
                 )}
-                {a.role !== null && (
-                  <span className="ml-1 text-sm text-gray-600">
-                    （{a.role === NO_ROLE ? '役割の指定なし' : `役割: ${a.role}`}）
-                  </span>
+                {a.roles !== null && (
+                  <span className="ml-1 text-sm text-gray-600">（{rolesSummary(a.roles)}）</span>
                 )}
               </p>
               <p className="mt-1 whitespace-pre-wrap text-sm text-gray-700">理由: {a.reason}</p>

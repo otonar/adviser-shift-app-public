@@ -2,6 +2,7 @@ import { getSupabaseAdmin } from '@/lib/supabase';
 import { authenticateUser, authenticateAdmin } from '@/lib/middleware';
 import { createShiftSchema } from '@/lib/validators';
 import { rolesForSlotType } from '@/lib/role-assignment';
+import { sessionNumbers } from '@/lib/session-roles';
 import {
   computeDeadline,
   deadlineFromDate,
@@ -168,8 +169,10 @@ async function postHandler(req: Request) {
     deadline_date,
     deadline_days_before,
     note,
+    session_count,
     target_user_ids,
   } = parsed.data;
+  const sessions = session_count ?? 1;
 
   const supabase = getSupabaseAdmin();
   // 期限の日付が指定されていればその日、無ければ「何日前」（既定は14日前）で決める
@@ -186,6 +189,7 @@ async function postHandler(req: Request) {
       end_time,
       deadline,
       note: note ?? null,
+      session_count: sessions,
       // 未入力なら列ごと送らない（title 列を追加する前の DB でも作成できるように）
       ...(title ? { title } : {}),
     })
@@ -204,12 +208,15 @@ async function postHandler(req: Request) {
           .insert(targetIds.map((user_id) => ({ shift_slot_id: slot.id, user_id })))
       : { error: null };
 
-  // 役割別必要人数（初期値 0）
-  const reqRows = rolesForSlotType(slot_type).map((role) => ({
-    shift_slot_id: slot.id,
-    role,
-    required_count: 0,
-  }));
+  // 役割別必要人数（初期値 0、回ごと）
+  const reqRows = sessionNumbers(sessions).flatMap((session) =>
+    rolesForSlotType(slot_type).map((role) => ({
+      shift_slot_id: slot.id,
+      session,
+      role,
+      required_count: 0,
+    }))
+  );
   const { error: reqErr } = await supabase
     .from('shift_role_requirements')
     .insert(reqRows);

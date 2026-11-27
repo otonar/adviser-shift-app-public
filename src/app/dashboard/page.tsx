@@ -7,7 +7,8 @@ import {
   fetchVisibleSurveys,
   upcomingRoles,
 } from '@/lib/staff-queries';
-import { NO_ROLE, SLOT_TYPE_LABEL } from '@/types';
+import { SLOT_TYPE_LABEL } from '@/types';
+import RoleText from '@/components/ui/RoleText';
 import { formatDeadlineJst, formatDateJa, formatTimeRange } from '@/lib/datetime';
 import { isCoreMember } from '@/lib/scope';
 import { fetchUpcomingAbsences } from '@/lib/absence-server';
@@ -100,16 +101,7 @@ export default async function Dashboard() {
                 </p>
                 {r.title && <p className="font-bold">{r.title}</p>}
                 <p className="text-sm">
-                  {r.role === NO_ROLE ? (
-                    <>
-                      <span className="font-bold">出勤</span>
-                      <span className="text-gray-500">（役割の指定なし）</span>
-                    </>
-                  ) : (
-                    <>
-                      役割: <span className="font-bold">{r.role}</span>
-                    </>
-                  )}
+                  <RoleText roles={r.roles} />
                 </p>
               </li>
             ))}

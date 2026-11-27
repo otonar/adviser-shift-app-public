@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { NO_ROLE, SLOT_TYPE_LABEL } from '@/types';
+import { SLOT_TYPE_LABEL } from '@/types';
+import RoleText from '@/components/ui/RoleText';
 import { formatDateJa, formatTimeRange, todayJst } from '@/lib/datetime';
 import {
   addMonths,
@@ -30,16 +31,7 @@ function StatusLine({ e }: { e: CalendarEntry }) {
   if (e.status === 'confirmed') {
     return (
       <p className="text-sm">
-        {e.role === NO_ROLE ? (
-          <>
-            <span className="font-bold">出勤</span>
-            <span className="text-gray-500">（役割の指定なし）</span>
-          </>
-        ) : (
-          <>
-            役割: <span className="font-bold">{e.role}</span>
-          </>
-        )}
+        <RoleText roles={e.roles ?? []} />
         {e.absence && (
           <span className="ml-2 rounded bg-red-100 px-1.5 py-0.5 text-xs font-bold text-red-800">
             欠席連絡済み

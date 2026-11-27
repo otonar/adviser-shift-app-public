@@ -9,6 +9,7 @@
 //   - 取り消しは連絡できる時間内なら本人ができる。取り消しもコアメンバーに知らせる。
 
 import { NO_ROLE, SLOT_TYPE_LABEL, type SlotType } from '@/types';
+import { rolesSummary, uniformRole } from './session-roles';
 
 // 理由の最大文字数（validators と画面で共有）
 export const ABSENCE_REASON_MAX = 500;
@@ -79,17 +80,19 @@ function slotLine(slot: AbsenceMessageSlot): string {
 
 /**
  * コアメンバーへ送る欠席連絡の文面。
- * role は確定済みの割り振りがあればその役割、無ければ null（役割の行を出さない）。
+ * roles は確定済みの割り振りがあればその役割（回の順）、無ければ null（役割の行を出さない）。
  */
 export function buildAbsenceMessage(opts: {
   name: string;
   slot: AbsenceMessageSlot;
-  role: string | null;
+  roles: string[] | null;
   reason: string;
 }): string {
   const lines = [`【欠席連絡】${opts.name}さん`, slotLine(opts.slot)];
-  if (opts.role !== null) {
-    lines.push(opts.role === NO_ROLE ? '役割: 指定なし（出勤のみ）' : `役割: ${opts.role}`);
+  if (opts.roles !== null && opts.roles.length > 0) {
+    lines.push(
+      uniformRole(opts.roles) === NO_ROLE ? '役割: 指定なし（出勤のみ）' : rolesSummary(opts.roles)
+    );
   }
   lines.push(`理由: ${opts.reason}`);
   lines.push('', 'アプリの「欠席連絡」で一覧を見られます。割り振りの調整が必要なら対応してください。');

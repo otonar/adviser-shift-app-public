@@ -2,6 +2,9 @@ import { getSupabaseAdmin } from '@/lib/supabase';
 import { authenticateAdmin } from '@/lib/middleware';
 import { updateShiftSchema } from '@/lib/validators';
 import { computeDeadline, deadlineFromDate, isExpired } from '@/lib/datetime';
+import { rolesForSlotType } from '@/lib/role-assignment';
+import { sessionNumbers } from '@/lib/session-roles';
+import type { SlotType } from '@/types';
 import { jsonError, jsonOk, parseBody, verifyOrigin, forbiddenOrigin, withRoute, isUuid, notFound } from '@/lib/http';
 
 type Params = { params: Promise<{ id: string }> };
@@ -40,14 +43,16 @@ async function getHandler(_req: Request, { params }: Params) {
   // 役割別必要人数
   const { data: roleReqs } = await supabase
     .from('shift_role_requirements')
-    .select('role, required_count')
-    .eq('shift_slot_id', slotId);
+    .select('session, role, required_count')
+    .eq('shift_slot_id', slotId)
+    .order('session', { ascending: true });
 
   // 割り振り結果（ユーザー名込み）
   const { data: assignRows } = await supabase
     .from('shift_assignments')
-    .select('user_id, role, users(name, is_active)')
-    .eq('shift_slot_id', slotId);
+    .select('user_id, session, role, users(name, is_active)')
+    .eq('shift_slot_id', slotId)
+    .order('session', { ascending: true });
 
   // 欠席連絡（提出期限後）。010 を適用する前の DB ではエラーになるが、空として扱う
   const { data: absenceRows } = await supabase
@@ -89,6 +94,7 @@ async function getHandler(_req: Request, { params }: Params) {
     return {
       user_id: a.user_id,
       name: u?.name ?? '(不明)',
+      session: a.session ?? 1,
       role: a.role,
       is_active: u?.is_active !== false,
     };
@@ -115,10 +121,70 @@ async function patchHandler(req: Request, { params }: Params) {
 
   const parsed = await parseBody(req, updateShiftSchema);
   if (!parsed.ok) return parsed.response;
-  const { date, start_time, end_time, title, deadline_date, note, role_requirements } =
-    parsed.data;
+  const {
+    date,
+    start_time,
+    end_time,
+    title,
+    deadline_date,
+    note,
+    session_count,
+    role_requirements,
+  } = parsed.data;
 
   const supabase = getSupabaseAdmin();
+
+  // 回数の変更（割り振り前＝受付中のときだけ）。必要人数の行も回数に合わせる:
+  // 減らしたら後ろの回の行を消し、増やしたら最後の回の人数を写して足す（同じ人数のことが多いため）。
+  if (session_count !== undefined) {
+    const { data: cur, error: curErr } = await supabase
+      .from('shift_slots')
+      .select('slot_type, session_count, assignment_status')
+      .eq('id', slotId)
+      .maybeSingle();
+    if (curErr) return jsonError('更新に失敗しました', 500, 'UPDATE_FAILED');
+    if (!cur) return notFound('シフト枠が見つかりません');
+    const before = cur.session_count ?? 1;
+    if (session_count !== before) {
+      if (cur.assignment_status !== 'open') {
+        return jsonError(
+          '割り振りのあとは回数を変えられません。先に「割り振りを破棄」してください',
+          400,
+          'SESSIONS_LOCKED'
+        );
+      }
+      if (session_count < before) {
+        const { error } = await supabase
+          .from('shift_role_requirements')
+          .delete()
+          .eq('shift_slot_id', slotId)
+          .gt('session', session_count);
+        if (error) return jsonError('更新に失敗しました', 500, 'UPDATE_FAILED');
+      } else {
+        const { data: lastRows, error: lastErr } = await supabase
+          .from('shift_role_requirements')
+          .select('role, required_count')
+          .eq('shift_slot_id', slotId)
+          .eq('session', before);
+        if (lastErr) return jsonError('更新に失敗しました', 500, 'UPDATE_FAILED');
+        const countByRole = new Map((lastRows ?? []).map((r) => [r.role as string, r.required_count as number]));
+        const rows = sessionNumbers(session_count)
+          .filter((n) => n > before)
+          .flatMap((session) =>
+            rolesForSlotType(cur.slot_type as SlotType).map((role) => ({
+              shift_slot_id: slotId,
+              session,
+              role,
+              required_count: countByRole.get(role) ?? 0,
+            }))
+          );
+        const { error } = await supabase
+          .from('shift_role_requirements')
+          .upsert(rows, { onConflict: 'shift_slot_id,session,role' });
+        if (error) return jsonError('更新に失敗しました', 500, 'UPDATE_FAILED');
+      }
+    }
+  }
 
   // 枠情報の更新
   const slotUpdate: Record<string, unknown> = {};
@@ -148,6 +214,7 @@ async function patchHandler(req: Request, { params }: Params) {
   // 空文字は「タイトルなし」として NULL に揃える
   if (title !== undefined) slotUpdate.title = title || null;
   if (note !== undefined) slotUpdate.note = note;
+  if (session_count !== undefined) slotUpdate.session_count = session_count;
   if (Object.keys(slotUpdate).length > 0) {
     slotUpdate.updated_at = new Date().toISOString();
     const { error } = await supabase
@@ -157,16 +224,28 @@ async function patchHandler(req: Request, { params }: Params) {
     if (error) return jsonError('更新に失敗しました', 500, 'UPDATE_FAILED');
   }
 
-  // 必要人数の更新（slot+role の組で upsert）
+  // 必要人数の更新（slot+回+role の組で upsert）
   if (role_requirements && role_requirements.length > 0) {
+    // 枠の回数より後ろの回は受け付けない（回数を減らしたあとに古い画面から送られた場合など）
+    const { data: cur, error: curErr } = await supabase
+      .from('shift_slots')
+      .select('session_count')
+      .eq('id', slotId)
+      .maybeSingle();
+    if (curErr) return jsonError('更新に失敗しました', 500, 'UPDATE_FAILED');
+    if (!cur) return notFound('シフト枠が見つかりません');
+    if (role_requirements.some((r) => (r.session ?? 1) > (cur.session_count ?? 1))) {
+      return jsonError('この枠に無い回の必要人数が入っています。画面を読み込み直してください', 400, 'INVALID_SESSION');
+    }
     const rows = role_requirements.map((r) => ({
       shift_slot_id: slotId,
+      session: r.session ?? 1,
       role: r.role,
       required_count: r.required_count,
     }));
     const { error } = await supabase
       .from('shift_role_requirements')
-      .upsert(rows, { onConflict: 'shift_slot_id,role' });
+      .upsert(rows, { onConflict: 'shift_slot_id,session,role' });
     if (error) return jsonError('更新に失敗しました', 500, 'UPDATE_FAILED');
   }
 

@@ -2,11 +2,12 @@ import { getSupabaseAdmin } from '@/lib/supabase';
 import { authenticateAdmin } from '@/lib/middleware';
 import { createShiftsBulkSchema } from '@/lib/validators';
 import { rolesForSlotType } from '@/lib/role-assignment';
+import { sessionNumbers } from '@/lib/session-roles';
 import { computeDeadline, deadlineFromDate } from '@/lib/datetime';
 import { jsonError, jsonOk, parseBody, verifyOrigin, forbiddenOrigin, withRoute } from '@/lib/http';
 
 // POST: 複数日のシフト枠をまとめて作成（管理者）。
-// slot_type・時間・タイトル・備考・対象者は共通、日付だけ複数。各枠に役割（初期0）を初期化。
+// slot_type・時間・回数・タイトル・備考・対象者は共通、日付だけ複数。各枠に役割（初期0）を初期化。
 // 提出期限は deadline_date があれば全枠ともその日、無ければ各枠の日付の何日前（既定は14日前）。
 async function postHandler(req: Request) {
   if (!(await verifyOrigin())) return forbiddenOrigin();
@@ -24,8 +25,10 @@ async function postHandler(req: Request) {
     deadline_date,
     deadline_days_before,
     note,
+    session_count,
     target_user_ids,
   } = parsed.data;
+  const sessions = session_count ?? 1;
 
   const supabase = getSupabaseAdmin();
   const uniqueDates = [...new Set(dates)];
@@ -40,6 +43,7 @@ async function postHandler(req: Request) {
       ? deadlineFromDate(deadline_date)
       : computeDeadline(date, deadline_days_before),
     note: note ?? null,
+    session_count: sessions,
     // 未入力なら列ごと送らない（title 列を追加する前の DB でも作成できるように）
     ...(title ? { title } : {}),
   }));
@@ -63,10 +67,12 @@ async function postHandler(req: Request) {
         )
       : { error: null };
 
-  // 役割別必要人数（初期値 0、全枠ぶん）
+  // 役割別必要人数（初期値 0、全枠×全回ぶん）
   const roles = rolesForSlotType(slot_type);
   const reqRows = slotIds.flatMap((shift_slot_id) =>
-    roles.map((role) => ({ shift_slot_id, role, required_count: 0 }))
+    sessionNumbers(sessions).flatMap((session) =>
+      roles.map((role) => ({ shift_slot_id, session, role, required_count: 0 }))
+    )
   );
   const { error: reqErr } = await supabase
     .from('shift_role_requirements')

@@ -58,19 +58,22 @@ async function postHandler(req: Request, { params }: Params) {
       .eq('shift_slot_id', slotId)
       .eq('user_id', auth.userId)
       .maybeSingle(),
+    // 1日の中の回（migration 013）ごとに1行あるので maybeSingle にしない
     supabase
       .from('shift_assignments')
       .select('role')
       .eq('shift_slot_id', slotId)
       .eq('user_id', auth.userId)
-      .maybeSingle(),
+      .order('session', { ascending: true }),
   ]);
   // 調整中（draft）の割り振りは本人に見せていないので、立場の判定にも役割の表示にも使わない
-  const publishedRole = slot.assignment_status === 'published' ? (assign?.role ?? null) : null;
+  const assignedRoles = (assign ?? []).map((a) => a.role as string);
+  const publishedRoles =
+    slot.assignment_status === 'published' && assignedRoles.length > 0 ? assignedRoles : null;
   if (
     !isAbsenceEligible({
       submittedAvailable: sub?.available ?? null,
-      publishedAssigned: publishedRole !== null,
+      publishedAssigned: publishedRoles !== null,
     })
   ) {
     return jsonError('このシフトに出る予定になっていません', 403, 'NOT_ELIGIBLE');
@@ -89,7 +92,7 @@ async function postHandler(req: Request, { params }: Params) {
 
   const notified = await notifyCoreMembers(
     auth.userId,
-    buildAbsenceMessage({ name: auth.name, slot, role: publishedRole, reason })
+    buildAbsenceMessage({ name: auth.name, slot, roles: publishedRoles, reason })
   );
   return jsonOk({ ok: true, notified }, 201);
 }

@@ -9,6 +9,7 @@ import {
 } from '@/types';
 import { MAX_DEADLINE_DAYS, isRealDate } from '@/lib/datetime';
 import { ABSENCE_REASON_MAX } from '@/lib/absence';
+import { MAX_SESSIONS } from '@/lib/session-roles';
 
 // 全 API Route Handler はここで定義した zod スキーマでバリデーションする。
 
@@ -65,6 +66,13 @@ const deadlineDaysBefore = z
   .int('提出期限の日数は整数で入力してください')
   .min(0, '提出期限の日数は0以上にしてください')
   .max(MAX_DEADLINE_DAYS, `提出期限の日数は${MAX_DEADLINE_DAYS}以下にしてください`);
+// 1日の中の回数（migration 013）と、何回目か。
+const sessionCount = z
+  .number()
+  .int('回数は整数で入力してください')
+  .min(1, '回数は1以上にしてください')
+  .max(MAX_SESSIONS, `回数は${MAX_SESSIONS}以下にしてください`);
+const sessionNo = z.number().int().min(1).max(MAX_SESSIONS);
 
 export const createShiftSchema = z
   .object({
@@ -76,6 +84,7 @@ export const createShiftSchema = z
     deadline_date: deadlineDate.optional(),
     deadline_days_before: deadlineDaysBefore.optional(),
     note: z.string().max(500).optional(),
+    session_count: sessionCount.optional(),
     target_user_ids: z.array(z.string().uuid()).default([]),
   })
   .refine((v) => v.start_time < v.end_time, {
@@ -97,9 +106,12 @@ export const updateShiftSchema = z
     // 枠の日付との前後はハンドラで確かめる（日付を送らない更新では今の日付と比べるため）。
     deadline_date: deadlineDate.optional(),
     note: z.string().max(500).nullable().optional(),
+    // 回数の変更は割り振り前（受付中）だけ。ハンドラで確かめる
+    session_count: sessionCount.optional(),
     role_requirements: z
       .array(
         z.object({
+          session: sessionNo.default(1),
           role: z.string().min(1),
           required_count: z.number().int().min(0),
         })
@@ -123,6 +135,7 @@ export const createShiftsBulkSchema = z
     deadline_date: deadlineDate.optional(),
     deadline_days_before: deadlineDaysBefore.optional(),
     note: z.string().max(500).optional(),
+    session_count: sessionCount.optional(),
     target_user_ids: z.array(z.string().uuid()).default([]),
   })
   .refine((v) => v.start_time < v.end_time, {
@@ -185,6 +198,8 @@ export const manualAssignmentSchema = z.object({
   assignments: z.array(
     z.object({
       userId: z.string().uuid(),
+      // 何回目か。回数1の枠（今までの形）では省略できる
+      session: sessionNo.default(1),
       role: z.string().min(1),
     })
   ),

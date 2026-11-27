@@ -15,13 +15,13 @@ export type CalendarEntry = {
   slot_type: 'day' | 'training';
   title: string | null;
   status: CalendarStatus;
-  role?: string; // 確定のときの役割
+  roles?: string[]; // 確定のときの役割（回の順）
   absence?: boolean; // 確定しているが欠席を連絡済み
 };
 
 type RoleInput = {
   slot_id: string;
-  role: string;
+  roles: string[];
   date: string;
   start_time: string;
   end_time: string;
@@ -68,7 +68,7 @@ export function buildCalendarEntries(
       slot_type: r.slot_type,
       title: r.title,
       status: 'confirmed',
-      role: r.role,
+      roles: r.roles,
       absence: !!slotsById.get(r.slot_id)?.absence,
     });
   }

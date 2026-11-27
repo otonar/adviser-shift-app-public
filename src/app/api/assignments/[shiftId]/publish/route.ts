@@ -39,12 +39,23 @@ async function postHandler(_req: Request, { params }: Params) {
   // 割り振られたスタッフ（LINE 連携済みのみ通知）
   const { data: assignments } = await supabase
     .from('shift_assignments')
-    .select('user_id, role, users(name, line_user_id, is_active)')
-    .eq('shift_slot_id', slotId);
+    .select('user_id, session, role, users(name, line_user_id, is_active)')
+    .eq('shift_slot_id', slotId)
+    .order('session', { ascending: true });
+
+  // 1人が回の数だけ行を持つので、人ごとにまとめて1通にする（役割は回の順）
+  type U = { name: string; line_user_id: string | null; is_active: boolean | null };
+  const people = new Map<string, { roles: string[]; user: U | null }>();
+  for (const a of assignments ?? []) {
+    const u = (Array.isArray(a.users) ? a.users[0] : a.users) as U | null;
+    const p = people.get(a.user_id) ?? { roles: [], user: u ?? null };
+    p.roles.push(a.role);
+    people.set(a.user_id, p);
+  }
 
   // タイトルがあれば「10/10 13:00〜16:00 PC研修」のように何の枠かも伝える
   const when = slotWhen(slot);
-  const buildMessage = (role: string) => confirmedMessage(when, role);
+  const buildMessage = (roles: string[]) => confirmedMessage(when, roles);
 
   // メッセージは役割ごとに異なるため、同一メッセージの連携済みユーザーをまとめて multicast する。
   const linked: { userId: string; lineUserId: string; message: string }[] = [];
@@ -59,19 +70,18 @@ async function postHandler(_req: Request, { params }: Params) {
   // 公開そのものは止めない＝掲示済みの枠を編集して出し直す運用があるため。
   const inactiveNames: string[] = [];
 
-  for (const a of assignments ?? []) {
-    const u = Array.isArray(a.users) ? a.users[0] : a.users;
+  for (const [userId, { roles, user: u }] of people) {
     if (u?.is_active === false) {
       inactiveNames.push(u?.name ?? '(不明)');
       continue;
     }
     const lineUserId = u?.line_user_id ?? null;
-    const message = buildMessage(a.role);
+    const message = buildMessage(roles);
     if (!lineUserId) {
-      logs.push({ user_id: a.user_id, notification_type: 'shift_confirmed', message, status: 'failed' });
+      logs.push({ user_id: userId, notification_type: 'shift_confirmed', message, status: 'failed' });
       continue;
     }
-    linked.push({ userId: a.user_id, lineUserId, message });
+    linked.push({ userId, lineUserId, message });
   }
 
   // メッセージ別にグループ化して multicast（各グループ 500 件ごと）
@@ -107,7 +117,7 @@ async function postHandler(_req: Request, { params }: Params) {
     await supabase.from('notification_logs').insert(logs);
   }
 
-  const skipped = (assignments?.length ?? 0) - notified;
+  const skipped = people.size - notified;
   return jsonOk({ ok: true, notified, skipped, inactive: inactiveNames });
 }
 

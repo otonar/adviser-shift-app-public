@@ -36,7 +36,7 @@ async function load(entry) {
   );
 }
 
-const { assignRoles, rolesForSlotType } = await load('src/lib/role-assignment.ts');
+const { assignRoles, assignRolesBySession, rolesForSlotType } = await load('src/lib/role-assignment.ts');
 const {
   computeDeadline,
   deadlineFromDate,
@@ -227,6 +227,109 @@ check('研修枠の役割', rolesForSlotType('training'), [
   ok('研修枠は研修用の役割で判定する（当日用の役割は使わない）', onlyB);
 }
 
+// ===== 1日の中の回ごとの割り振り ================================================
+console.log('\n■ 回ごとの割り振り（assignRolesBySession）');
+{
+  // 2人とも受付・アテンドができる。各回 受付1・アテンド1 → 2回目は必ず入れ替わる
+  const users = [
+    { userId: 'a', dayRoles: ['受付', 'アテンド'], trainingRoles: [] },
+    { userId: 'b', dayRoles: ['受付', 'アテンド'], trainingRoles: [] },
+  ];
+  const subs = users.map((u) => ({ userId: u.userId, available: true }));
+  const reqs = [1, 2].flatMap((session) => [
+    { session, role: '受付', requiredCount: 1 },
+    { session, role: 'アテンド', requiredCount: 1 },
+  ]);
+  let rotated = true;
+  let shape = true;
+  for (let i = 0; i < ITERATIONS; i++) {
+    const r = assignRolesBySession('day', 2, reqs, subs, users);
+    const roleOf = (u, s) => r.find((x) => x.userId === u && x.session === s)?.role;
+    if (r.length !== 4) shape = false;
+    for (const u of ['a', 'b']) if (roleOf(u, 1) === roleOf(u, 2)) rotated = false;
+  }
+  ok('前の回と違う役割を優先する（交代できるなら必ず交代）', rotated);
+  ok('全員が全部の回に1行ずつ持つ', shape);
+}
+{
+  // 4回・受付1。受付ができる人が2人 → 2回ずつになる
+  const users = [
+    { userId: 'a', dayRoles: ['受付'], trainingRoles: [] },
+    { userId: 'b', dayRoles: ['受付'], trainingRoles: [] },
+  ];
+  const subs = users.map((u) => ({ userId: u.userId, available: true }));
+  const reqs = [1, 2, 3, 4].map((session) => ({ session, role: '受付', requiredCount: 1 }));
+  let balanced = true;
+  for (let i = 0; i < ITERATIONS; i++) {
+    const r = assignRolesBySession('day', 4, reqs, subs, users);
+    const count = (u) => r.filter((x) => x.userId === u && x.role === '受付').length;
+    if (count('a') !== 2 || count('b') !== 2) balanced = false;
+  }
+  ok('同じ役割の回数がそろう（4回を2人で2回ずつ）', balanced);
+}
+{
+  // その役割ができるのが1人だけなら、全部の回でその人
+  const users = [
+    { userId: 'a', dayRoles: ['PC'], trainingRoles: [] },
+    { userId: 'b', dayRoles: ['受付'], trainingRoles: [] },
+  ];
+  const subs = users.map((u) => ({ userId: u.userId, available: true }));
+  const reqs = [1, 2, 3].map((session) => ({ session, role: 'PC', requiredCount: 1 }));
+  const r = assignRolesBySession('day', 3, reqs, subs, users);
+  check(
+    '代わりがいなければ同じ人が続ける・役割の無い回は役割なし',
+    ['a', 'b'].map((u) =>
+      r
+        .filter((x) => x.userId === u)
+        .sort((x, y) => x.session - y.session)
+        .map((x) => x.role)
+    ),
+    [
+      ['PC', 'PC', 'PC'],
+      ['役割なし', '役割なし', '役割なし'],
+    ]
+  );
+}
+{
+  // 必要人数は回ごと。2回目だけ受付2
+  const users = ['a', 'b', 'c'].map((userId) => ({ userId, dayRoles: ['受付'], trainingRoles: [] }));
+  const subs = users.map((u) => ({ userId: u.userId, available: true }));
+  const reqs = [
+    { session: 1, role: '受付', requiredCount: 1 },
+    { session: 2, role: '受付', requiredCount: 2 },
+  ];
+  const r = assignRolesBySession('day', 2, reqs, subs, users);
+  check(
+    '回ごとの必要人数を使う',
+    [1, 2].map((s) => r.filter((x) => x.session === s && x.role === '受付').length),
+    [1, 2]
+  );
+  const one = assignRolesBySession('day', 1, [{ session: 1, role: '受付', requiredCount: 1 }], subs, users);
+  ok('回数1の枠は全員1回目の1行だけ', one.length === 3 && one.every((x) => x.session === 1));
+}
+{
+  const { validateSessionAssignments, rolesSummary, groupRolesByUser } = await load('src/lib/session-roles.ts');
+  const full = [
+    { userId: 'a', session: 1, role: '受付' },
+    { userId: 'a', session: 2, role: 'PC' },
+  ];
+  check('回の検証: 全部の回があれば OK', validateSessionAssignments(full, 2), null);
+  check('回の検証: 抜けた回がある', validateSessionAssignments(full.slice(0, 1), 2), '全部の回の役割を決めてください');
+  check(
+    '回の検証: 同じ回が2つ',
+    validateSessionAssignments([...full, { userId: 'a', session: 2, role: '受付' }], 2),
+    '同じ人が同じ回に2回入っています'
+  );
+  check('回の検証: 回数より後ろの回', validateSessionAssignments(full, 1), 'この枠に無い回が入っています');
+  check('表記: 全回同じ', rolesSummary(['受付', '受付']), '役割: 受付');
+  check('表記: 全回役割なし', rolesSummary(['役割なし']), '役割の指定なし');
+  check(
+    'まとめ: 回の順に並べる（session が無い行は1回目）',
+    [...groupRolesByUser([{ userId: 'a', session: 2, role: 'PC' }, { userId: 'a', role: '受付' }])],
+    [['a', ['受付', 'PC']]]
+  );
+}
+
 // ===== 日付・期限 ===========================================================
 console.log('\n■ 日付・期限（src/lib/datetime.ts）');
 
@@ -326,7 +429,7 @@ console.log('\n■ 欠席連絡（src/lib/absence.ts）');
   check('日付の表記', formatSlotDateJa('2026-11-10'), '11/10(火)');
   check(
     '欠席連絡の文面（役割あり）',
-    buildAbsenceMessage({ name: '山田', slot, role: '受付', reason: '体調不良のため' }),
+    buildAbsenceMessage({ name: '山田', slot, roles: ['受付'], reason: '体調不良のため' }),
     [
       '【欠席連絡】山田さん',
       '11/10(火) 13:00〜16:00 当日 入学式',
@@ -338,11 +441,15 @@ console.log('\n■ 欠席連絡（src/lib/absence.ts）');
   );
   ok(
     '欠席連絡の文面（未確定の枠は役割の行を出さない）',
-    !buildAbsenceMessage({ name: '山田', slot: { ...slot, title: null }, role: null, reason: 'x' }).includes('役割')
+    !buildAbsenceMessage({ name: '山田', slot: { ...slot, title: null }, roles: null, reason: 'x' }).includes('役割')
   );
   ok(
     '欠席連絡の文面（役割なしで出勤）',
-    buildAbsenceMessage({ name: '山田', slot, role: '役割なし', reason: 'x' }).includes('役割: 指定なし（出勤のみ）')
+    buildAbsenceMessage({ name: '山田', slot, roles: ['役割なし', '役割なし'], reason: 'x' }).includes('役割: 指定なし（出勤のみ）')
+  );
+  ok(
+    '欠席連絡の文面（回で役割が違う）',
+    buildAbsenceMessage({ name: '山田', slot, roles: ['加入', '受付'], reason: 'x' }).includes('役割: 1回目「加入」・2回目「受付」')
   );
   ok(
     '取り消しの文面',
@@ -369,10 +476,29 @@ console.log('\n■ 割り振りの差分と文面（src/lib/assignment-change.ts
     { userId: 'd', role: 'PC' }, // 追加（c の代役）
   ];
   check('差分: 追加・外す・役割変更', diffAssignments(before, after), {
-    added: [{ userId: 'd', role: 'PC' }],
-    removed: [{ userId: 'c', role: 'PC' }],
-    changed: [{ userId: 'b', from: 'アテンド', to: '受付' }],
+    added: [{ userId: 'd', roles: ['PC'] }],
+    removed: [{ userId: 'c', roles: ['PC'] }],
+    changed: [{ userId: 'b', from: ['アテンド'], to: ['受付'] }],
   });
+  // 1日の中の回（migration 013）: 人ごとに回の順で比べる。行の並びには左右されない
+  const beforeS = [
+    { userId: 'a', session: 2, role: '受付' },
+    { userId: 'a', session: 1, role: '加入' },
+    { userId: 'b', session: 1, role: 'PC' },
+    { userId: 'b', session: 2, role: 'PC' },
+  ];
+  const afterS = [
+    { userId: 'a', session: 1, role: '加入' },
+    { userId: 'a', session: 2, role: '受付' },
+    { userId: 'b', session: 1, role: 'PC' },
+    { userId: 'b', session: 2, role: 'アテンド' },
+  ];
+  check('差分（回あり）: 1つの回だけ変わっても役割変更', diffAssignments(beforeS, afterS), {
+    added: [],
+    removed: [],
+    changed: [{ userId: 'b', from: ['PC', 'PC'], to: ['PC', 'アテンド'] }],
+  });
+  check('差分（回あり）: 行の並びが違うだけなら変更なし', hasChanges(diffAssignments(beforeS, [...beforeS].reverse())), false);
   check('差分: 変わらない人は入らない', hasChanges(diffAssignments(before, [...before].reverse())), false);
   check('差分: 全員外す', diffAssignments(before, []).removed.length, 3);
 
@@ -383,18 +509,34 @@ console.log('\n■ 割り振りの差分と文面（src/lib/assignment-change.ts
     slotWhen({ date: '2026-11-10', start_time: '13:00:00', end_time: '16:00:00', title: null }),
     '2026-11-10 13:00〜16:00'
   );
-  check('確定の文面（公開時と同じ）', confirmedMessage(when, '受付'), 'シフト確定: 2026-11-10 13:00〜16:00 入学式 あなたの役割は「受付」です');
-  check('確定の文面（役割なし）', confirmedMessage(when, '役割なし'), 'シフト確定: 2026-11-10 13:00〜16:00 入学式 出勤です（役割の指定はありません）');
+  check('確定の文面（公開時と同じ）', confirmedMessage(when, ['受付']), 'シフト確定: 2026-11-10 13:00〜16:00 入学式 あなたの役割は「受付」です');
+  check('確定の文面（役割なし）', confirmedMessage(when, ['役割なし']), 'シフト確定: 2026-11-10 13:00〜16:00 入学式 出勤です（役割の指定はありません）');
   check('外れた文面', removedMessage(when), 'シフト変更: 2026-11-10 13:00〜16:00 入学式 のシフトから外れました（出勤しなくて大丈夫です）');
-  check('役割変更の文面', roleChangedMessage(when, 'アテンド', '受付'), 'シフト変更: 2026-11-10 13:00〜16:00 入学式 あなたの役割が「アテンド」から「受付」に変わりました');
-  check('役割変更の文面（役割なしへ）', roleChangedMessage(when, '受付', '役割なし'), 'シフト変更: 2026-11-10 13:00〜16:00 入学式 あなたの役割が「受付」から役割の指定なしに変わりました');
+  check('役割変更の文面', roleChangedMessage(when, ['アテンド'], ['受付']), 'シフト変更: 2026-11-10 13:00〜16:00 入学式 あなたの役割が「アテンド」から「受付」に変わりました');
+  check('役割変更の文面（役割なしへ）', roleChangedMessage(when, ['受付'], ['役割なし']), 'シフト変更: 2026-11-10 13:00〜16:00 入学式 あなたの役割が「受付」から役割の指定なしに変わりました');
+  check(
+    '確定の文面（回で役割が違う）',
+    confirmedMessage(when, ['加入', '受付', '受付', 'アテンド']),
+    'シフト確定: 2026-11-10 13:00〜16:00 入学式 あなたの役割は 1回目「加入」・2回目「受付」・3回目「受付」・4回目「アテンド」です'
+  );
+  check('確定の文面（全回同じ役割）', confirmedMessage(when, ['受付', '受付']), 'シフト確定: 2026-11-10 13:00〜16:00 入学式 あなたの役割は「受付」です');
+  check(
+    '確定の文面（一部の回だけ役割なし）',
+    confirmedMessage(when, ['受付', '役割なし']),
+    'シフト確定: 2026-11-10 13:00〜16:00 入学式 あなたの役割は 1回目「受付」・2回目 指定なし です'
+  );
+  check(
+    '役割変更の文面（回で違う）',
+    roleChangedMessage(when, ['PC', 'PC'], ['PC', 'アテンド']),
+    'シフト変更: 2026-11-10 13:00〜16:00 入学式 あなたの役割が変わりました。変更後: 1回目「PC」・2回目「アテンド」'
+  );
 }
 
 console.log('\n■ シフトのカレンダー（src/lib/calendar.ts）');
 {
   const { buildCalendarEntries, summarizeByDate, monthGrid, addMonths } = await load('src/lib/calendar.ts');
   const base = { start_time: '10:00:00', end_time: '12:00:00', slot_type: 'day', title: null };
-  const roles = [{ ...base, slot_id: 'c1', role: '受付', date: '2026-04-06' }];
+  const roles = [{ ...base, slot_id: 'c1', roles: ['受付'], date: '2026-04-06' }];
   const slots = [
     { ...base, id: 'c1', date: '2026-04-06', expired: true, submission: { available: true }, absence: { reason: 'x' } },
     { ...base, id: 'o1', date: '2026-04-08', expired: false, submission: { available: true } },
@@ -410,7 +552,7 @@ console.log('\n■ シフトのカレンダー（src/lib/calendar.ts）');
     'o1:available',
     'u1:unanswered',
   ]);
-  check('カレンダー: 確定の役割と欠席連絡', [entries[0].role, entries[0].absence], ['受付', true]);
+  check('カレンダー: 確定の役割と欠席連絡', [entries[0].roles, entries[0].absence], [['受付'], true]);
   const sum = summarizeByDate(entries);
   check('カレンダー: 同じ日は強い方（○ > 未回答）・件数', sum.get('2026-04-08'), { status: 'available', count: 2, absence: false });
   check('カレンダー: 何もない日は無い', sum.has('2026-04-10'), false);

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import type { SlotType, AssignmentStatus } from '@/types';
 import { NO_ROLE, SLOT_TYPE_LABEL } from '@/types';
 import { rolesForSlotType } from '@/lib/role-assignment';
+import { MAX_SESSIONS, sessionLabel, sessionNumbers, uniformRole } from '@/lib/session-roles';
 import {
   addDays,
   daysBetween,
@@ -33,6 +34,8 @@ type Slot = {
   assignment_status: AssignmentStatus;
   // title 列を追加する前の DB では返ってこないので省略可にしている
   title?: string | null;
+  // 1日の中の回数（migration 013 より前の DB では返らない＝1回）
+  session_count?: number;
   note: string | null;
 };
 type Target = {
@@ -45,12 +48,21 @@ type Target = {
   submitted: boolean;
   is_active: boolean;
 };
-type RoleReq = { role: string; required_count: number };
+type RoleReq = { session?: number; role: string; required_count: number };
+// API が返す1行（1人が回の数だけ行を持つ）
 type Assignment = {
   user_id: string;
   name: string;
+  session?: number;
   role: string;
   is_active: boolean;
+};
+// 画面で直す1人ぶん。roles は回の順（roles[0] が 1回目）
+type EditRow = {
+  user_id: string;
+  name: string;
+  is_active: boolean;
+  roles: string[];
 };
 type Absence = {
   user_id: string;
@@ -75,10 +87,53 @@ type Confirming =
   | { kind: 'reset' }
   | { kind: 'delete' };
 
-function sameAssignments(a: Assignment[], b: Assignment[]): boolean {
+// 必要人数の state のキー
+function reqKey(session: number, role: string): string {
+  return `${session}:${role}`;
+}
+
+function reqsFrom(rows: RoleReq[]): Record<string, number> {
+  return Object.fromEntries(rows.map((r) => [reqKey(r.session ?? 1, r.role), r.required_count]));
+}
+
+// API の行を人ごとにまとめる。足りない回は「役割なし」で埋める（全部の回を持つ決まり）
+function groupAssignments(rows: Assignment[], sessionCount: number): EditRow[] {
+  const byUser = new Map<string, EditRow>();
+  for (const a of rows) {
+    const cur = byUser.get(a.user_id) ?? {
+      user_id: a.user_id,
+      name: a.name,
+      is_active: a.is_active,
+      roles: [],
+    };
+    cur.roles[(a.session ?? 1) - 1] = a.role;
+    byUser.set(a.user_id, cur);
+  }
+  return [...byUser.values()].map((r) => ({
+    ...r,
+    roles: sessionNumbers(sessionCount).map((n) => r.roles[n - 1] ?? NO_ROLE),
+  }));
+}
+
+// API に送る形（1人×回 で1行）
+function flattenAssignments(rows: EditRow[]) {
+  return rows.flatMap((r) =>
+    r.roles.map((role, i) => ({ userId: r.user_id, session: i + 1, role }))
+  );
+}
+
+function sameAssignments(a: EditRow[], b: EditRow[]): boolean {
   if (a.length !== b.length) return false;
-  const m = new Map(b.map((x) => [x.user_id, x.role]));
-  return a.every((x) => m.get(x.user_id) === x.role);
+  const m = new Map(b.map((x) => [x.user_id, x.roles]));
+  return a.every((x) => {
+    const r = m.get(x.user_id);
+    return !!r && r.length === x.roles.length && r.every((v, i) => v === x.roles[i]);
+  });
+}
+
+// 確認ダイアログに出す短い表記（全回同じなら役割だけ）
+function rolesBrief(roles: string[]): string {
+  return uniformRole(roles) ?? roles.map((r, i) => `${sessionLabel(i + 1)} ${r}`).join('・');
 }
 
 // 管理: シフト枠の詳細。
@@ -95,8 +150,9 @@ export default function ShiftDetail({ shiftId }: { shiftId: string }) {
   const [confirming, setConfirming] = useState<Confirming | null>(null);
 
   // 編集用 state
+  // 必要人数。キーは reqKey(回, 役割)
   const [reqs, setReqs] = useState<Record<string, number>>({});
-  const [editAssign, setEditAssign] = useState<Assignment[]>([]);
+  const [editAssign, setEditAssign] = useState<EditRow[]>([]);
   // 確定後の差し替え中か（published のときだけ使う）
   const [swapping, setSwapping] = useState(false);
 
@@ -114,6 +170,7 @@ export default function ShiftDetail({ shiftId }: { shiftId: string }) {
     deadline_date: '',
     title: '',
     note: '',
+    session_count: 1,
   });
 
   const load = useCallback(async () => {
@@ -129,10 +186,8 @@ export default function ShiftDetail({ shiftId }: { shiftId: string }) {
     }
     const data: Detail = await res.json();
     setDetail(data);
-    setReqs(
-      Object.fromEntries(data.role_requirements.map((r) => [r.role, r.required_count]))
-    );
-    setEditAssign(data.assignments);
+    setReqs(reqsFrom(data.role_requirements));
+    setEditAssign(groupAssignments(data.assignments, data.slot.session_count ?? 1));
     setTargetSel(new Set(data.targets.map((t) => t.id)));
     setLoading(false);
   }, [shiftId, router]);
@@ -143,13 +198,21 @@ export default function ShiftDetail({ shiftId }: { shiftId: string }) {
     })();
   }, [load]);
 
+  // 回数と回の番号（1..回数）
+  const sessionCount = detail?.slot.session_count ?? 1;
+  const sessions = sessionNumbers(sessionCount);
+  const multi = sessionCount > 1;
+  // 保存済みの割り振り（人ごと）と必要人数
+  const savedAssign = detail ? groupAssignments(detail.assignments, sessionCount) : [];
+  const savedReqs = detail ? reqsFrom(detail.role_requirements) : {};
+
   // 未保存の手直し（割り振り・必要人数）
-  const assignDirty = detail ? !sameAssignments(editAssign, detail.assignments) : false;
+  const assignDirty = detail ? !sameAssignments(editAssign, savedAssign) : false;
   const reqsDirty = detail
-    ? rolesForSlotType(detail.slot.slot_type).some(
-        (r) =>
-          (reqs[r] ?? 0) !==
-          (detail.role_requirements.find((x) => x.role === r)?.required_count ?? 0)
+    ? sessions.some((n) =>
+        rolesForSlotType(detail.slot.slot_type).some(
+          (r) => (reqs[reqKey(n, r)] ?? 0) !== (savedReqs[reqKey(n, r)] ?? 0)
+        )
       )
     : false;
   const dirty = assignDirty || reqsDirty;
@@ -207,10 +270,14 @@ export default function ShiftDetail({ shiftId }: { shiftId: string }) {
   }
 
   async function saveReqs(): Promise<boolean> {
-    const role_requirements = Object.entries(reqs).map(([role, required_count]) => ({
-      role,
-      required_count,
-    }));
+    if (!detail) return false;
+    const role_requirements = sessions.flatMap((session) =>
+      rolesForSlotType(detail.slot.slot_type).map((role) => ({
+        session,
+        role,
+        required_count: reqs[reqKey(session, role)] ?? 0,
+      }))
+    );
     return !!(await call(`/api/shifts/${shiftId}`, 'PATCH', { role_requirements }));
   }
 
@@ -224,7 +291,7 @@ export default function ShiftDetail({ shiftId }: { shiftId: string }) {
   async function saveChanges() {
     if (reqsDirty && !(await saveReqs())) return;
     if (assignDirty) {
-      const assignments = editAssign.map((a) => ({ userId: a.user_id, role: a.role }));
+      const assignments = flattenAssignments(editAssign);
       if (!(await call(`/api/assignments/${shiftId}`, 'PATCH', { assignments }))) return;
     }
     await load();
@@ -235,7 +302,7 @@ export default function ShiftDetail({ shiftId }: { shiftId: string }) {
     setNotice(null);
     if (reqsDirty && !(await saveReqs())) return;
     // 手直しを保存してから公開する
-    const assignments = editAssign.map((a) => ({ userId: a.user_id, role: a.role }));
+    const assignments = flattenAssignments(editAssign);
     if (!(await call(`/api/assignments/${shiftId}`, 'PATCH', { assignments }))) return;
     const result = await call(`/api/assignments/${shiftId}/publish`, 'POST');
     if (!result) return;
@@ -251,16 +318,24 @@ export default function ShiftDetail({ shiftId }: { shiftId: string }) {
   // 確定後の差し替え。変更点を確認ダイアログに出す
   function swapLines(): string[] {
     if (!detail) return [];
-    const before = new Map(detail.assignments.map((a) => [a.user_id, a]));
+    const before = new Map(savedAssign.map((a) => [a.user_id, a]));
     const after = new Map(editAssign.map((a) => [a.user_id, a]));
     const lines: string[] = [];
     for (const a of editAssign) {
       const b = before.get(a.user_id);
-      if (!b) lines.push(`追加: ${a.name}（${a.role}）`);
-      else if (b.role !== a.role) lines.push(`役割変更: ${a.name}（${b.role} → ${a.role}）`);
+      if (!b) {
+        lines.push(`追加: ${a.name}（${rolesBrief(a.roles)}）`);
+        continue;
+      }
+      // 変わった回だけを並べる（回数1の枠は「受付 → アテンド」）
+      const changes = a.roles
+        .map((to, i) => ({ from: b.roles[i], to, n: i + 1 }))
+        .filter((c) => c.from !== c.to)
+        .map((c) => `${multi ? `${sessionLabel(c.n)} ` : ''}${c.from} → ${c.to}`);
+      if (changes.length > 0) lines.push(`役割変更: ${a.name}（${changes.join('、')}）`);
     }
-    for (const b of detail.assignments) {
-      if (!after.has(b.user_id)) lines.push(`外す: ${b.name}（${b.role}）`);
+    for (const b of savedAssign) {
+      if (!after.has(b.user_id)) lines.push(`外す: ${b.name}（${rolesBrief(b.roles)}）`);
     }
     return lines;
   }
@@ -274,7 +349,7 @@ export default function ShiftDetail({ shiftId }: { shiftId: string }) {
       await load();
       return;
     }
-    const assignments = editAssign.map((a) => ({ userId: a.user_id, role: a.role }));
+    const assignments = flattenAssignments(editAssign);
     const result = await call(`/api/assignments/${shiftId}/swap`, 'POST', { assignments });
     if (!result) return;
     const unnotified = Array.isArray(result.unnotified) ? (result.unnotified as string[]) : [];
@@ -289,10 +364,8 @@ export default function ShiftDetail({ shiftId }: { shiftId: string }) {
 
   function cancelEdits() {
     if (!detail) return;
-    setEditAssign(detail.assignments);
-    setReqs(
-      Object.fromEntries(detail.role_requirements.map((r) => [r.role, r.required_count]))
-    );
+    setEditAssign(savedAssign);
+    setReqs(savedReqs);
     setSwapping(false);
   }
 
@@ -334,8 +407,12 @@ export default function ShiftDetail({ shiftId }: { shiftId: string }) {
       return;
     }
     const title = infoForm.title.trim();
+    // 回数を変えるときは、直しかけの必要人数を先に保存する（回数を変えると表が組み直されるため）
+    const sessionChanged = infoForm.session_count !== sessionCount;
+    if (sessionChanged && reqsDirty && !(await saveReqs())) return;
     if (
       await call(`/api/shifts/${shiftId}`, 'PATCH', {
+        ...(sessionChanged ? { session_count: infoForm.session_count } : {}),
         date: infoForm.date,
         start_time: infoForm.start_time,
         end_time: infoForm.end_time,
@@ -387,9 +464,15 @@ export default function ShiftDetail({ shiftId }: { shiftId: string }) {
     .filter((t) => !assignedIds.has(t.id) && t.is_active)
     .sort((a, b) => availabilityOrder(a) - availabilityOrder(b));
 
-  // 役割ごとの 必要 / 割り当て（M5）
-  const assignedCount = (role: string) => editAssign.filter((a) => a.role === role).length;
-  const shortRoles = roles.filter((r) => assignedCount(r) < (reqs[r] ?? 0));
+  // 役割ごとの 必要 / 割り当て（M5）。回ごとに数える
+  const need = (n: number, role: string) => reqs[reqKey(n, role)] ?? 0;
+  const assignedCount = (n: number, role: string) =>
+    editAssign.filter((a) => a.roles[n - 1] === role).length;
+  const shortIn = (n: number) => roles.filter((r) => assignedCount(n, r) < need(n, r));
+  // 足りない役割（回が複数なら「2回目 受付」の形）
+  const shortRoles = sessions.flatMap((n) =>
+    shortIn(n).map((r) => (multi ? `${sessionLabel(n)} ${r}` : r))
+  );
 
   // 割り振りを手で直せる状態か（調整中、または確定後に差し替え中）
   const editable = status === 'draft' || (status === 'published' && swapping);
@@ -400,9 +483,12 @@ export default function ShiftDetail({ shiftId }: { shiftId: string }) {
   function addMember(userId: string) {
     const t = targets.find((x) => x.id === userId);
     if (!t) return;
-    // 役割は足りていない役割を優先して入れる（あとで変えられる）
-    const role = shortRoles[0] ?? roles[0];
-    setEditAssign([...editAssign, { user_id: t.id, name: t.name, role, is_active: true }]);
+    // 役割は回ごとに、足りていない役割を優先して入れる（あとで変えられる）
+    const newRoles = sessions.map((n) => shortIn(n)[0] ?? roles[0]);
+    setEditAssign([
+      ...editAssign,
+      { user_id: t.id, name: t.name, roles: newRoles, is_active: true },
+    ]);
   }
 
   function askAssign() {
@@ -416,10 +502,19 @@ export default function ShiftDetail({ shiftId }: { shiftId: string }) {
   function askPublish() {
     const leaving = editAssign.filter((a) => !a.is_active).map((a) => a.name);
     const lines = roles
-      .filter((r) => (reqs[r] ?? 0) > 0 || assignedCount(r) > 0)
-      .map((r) => `${r}: ${assignedCount(r)} / ${reqs[r] ?? 0} 人`);
-    const noRole = assignedCount(NO_ROLE);
-    if (noRole > 0) lines.push(`${NO_ROLE}: ${noRole} 人`);
+      .filter((r) => sessions.some((n) => need(n, r) > 0 || assignedCount(n, r) > 0))
+      .map((r) =>
+        multi
+          ? `${r}: ${sessions.map((n) => `${sessionLabel(n)} ${assignedCount(n, r)}/${need(n, r)}`).join('・')} 人`
+          : `${r}: ${assignedCount(1, r)} / ${need(1, r)} 人`
+      );
+    if (sessions.some((n) => assignedCount(n, NO_ROLE) > 0)) {
+      lines.push(
+        multi
+          ? `${NO_ROLE}: ${sessions.map((n) => `${sessionLabel(n)} ${assignedCount(n, NO_ROLE)}`).join('・')} 人`
+          : `${NO_ROLE}: ${assignedCount(1, NO_ROLE)} 人`
+      );
+    }
     setConfirming({ kind: 'publish', lines, leaving });
   }
 
@@ -667,51 +762,105 @@ export default function ShiftDetail({ shiftId }: { shiftId: string }) {
         </div>
 
         {/* 役割ごとの 必要人数 / 割り当て */}
-        <table className="mb-3 w-full text-sm">
-          <thead>
-            <tr className="border-b text-left text-gray-500">
-              <th className="py-1">役割</th>
-              <th className="py-1">必要</th>
-              {status !== 'open' && <th className="py-1">割り当て</th>}
-            </tr>
-          </thead>
-          <tbody>
-            {roles.map((role) => {
-              const need = reqs[role] ?? 0;
-              const have = assignedCount(role);
-              return (
-                <tr key={role} className="border-b last:border-b-0">
-                  <td className="py-1">{role}</td>
-                  <td className="py-1">
-                    {reqsEditable ? (
-                      <input
-                        type="number"
-                        min={0}
-                        inputMode="numeric"
-                        aria-label={`${role} の必要人数`}
-                        value={need}
-                        onChange={(e) =>
-                          setReqs({ ...reqs, [role]: Math.max(0, Number(e.target.value) || 0) })
-                        }
-                        className="w-16 rounded border px-2 py-1"
-                      />
-                    ) : (
-                      need
-                    )}
-                  </td>
-                  {status !== 'open' && (
+        {!multi ? (
+          <table className="mb-3 w-full text-sm">
+            <thead>
+              <tr className="border-b text-left text-gray-500">
+                <th className="py-1">役割</th>
+                <th className="py-1">必要</th>
+                {status !== 'open' && <th className="py-1">割り当て</th>}
+              </tr>
+            </thead>
+            <tbody>
+              {roles.map((role) => {
+                const want = need(1, role);
+                return (
+                  <tr key={role} className="border-b last:border-b-0">
+                    <td className="py-1">{role}</td>
                     <td className="py-1">
-                      <span className={have < need ? 'font-bold text-amber-700' : ''}>
-                        {have}
-                        {have < need && ` ⚠ あと ${need - have}`}
-                      </span>
+                      {reqsEditable ? (
+                        <NeedInput
+                          label={`${role} の必要人数`}
+                          value={want}
+                          onChange={(v) => setReqs({ ...reqs, [reqKey(1, role)]: v })}
+                        />
+                      ) : (
+                        want
+                      )}
                     </td>
-                  )}
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+                    {status !== 'open' && (
+                      <td className="py-1">
+                        <HaveCount have={assignedCount(1, role)} need={want} />
+                      </td>
+                    )}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        ) : (
+          // 回が複数: 列が回。各マスに必要人数（割り振り後は割り当て人数も）
+          <div className="mb-3 flex flex-col gap-1">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-left text-gray-500">
+                    <th className="py-1 pr-2">役割</th>
+                    {sessions.map((n) => (
+                      <th key={n} className="whitespace-nowrap px-1 py-1">
+                        {sessionLabel(n)}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {roles.map((role) => (
+                    <tr key={role} className="border-b last:border-b-0">
+                      <td className="whitespace-nowrap py-1 pr-2">{role}</td>
+                      {sessions.map((n) => {
+                        const want = need(n, role);
+                        return (
+                          <td key={n} className="px-1 py-1 align-top">
+                            {reqsEditable ? (
+                              <NeedInput
+                                label={`${sessionLabel(n)} ${role} の必要人数`}
+                                value={want}
+                                onChange={(v) => setReqs({ ...reqs, [reqKey(n, role)]: v })}
+                              />
+                            ) : (
+                              <span>必要 {want}</span>
+                            )}
+                            {status !== 'open' && (
+                              <div className="whitespace-nowrap text-xs">
+                                <HaveCount have={assignedCount(n, role)} need={want} />
+                              </div>
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {reqsEditable && (
+              <button
+                type="button"
+                onClick={() => {
+                  const next = { ...reqs };
+                  for (const n of sessions) for (const r of roles) next[reqKey(n, r)] = need(1, r);
+                  setReqs(next);
+                }}
+                className="self-start rounded border px-2 py-1 text-xs"
+              >
+                1回目の人数を全部の回に写す
+              </button>
+            )}
+            <p className="text-xs text-gray-400">
+              全{sessionCount}回。希望（○×）は日単位なので、○の人は全部の回に出る前提で回ごとに役割を決めます。自動割り振りは、なるべく前の回と違う役割にします。
+            </p>
+          </div>
+        )}
 
         {status === 'open' && (
           <div className="flex flex-wrap gap-2">
@@ -753,11 +902,20 @@ export default function ShiftDetail({ shiftId }: { shiftId: string }) {
                 差し替え中です。外す・追加する・役割を変えるをしてから「差し替えて LINE で知らせる」を押してください。LINE は変更があった人にだけ届きます。
               </p>
             )}
+            <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b text-left text-gray-500">
                   <th className="py-1">名前</th>
-                  <th className="py-1">役割</th>
+                  {multi ? (
+                    sessions.map((n) => (
+                      <th key={n} className="whitespace-nowrap px-1 py-1">
+                        {sessionLabel(n)}
+                      </th>
+                    ))
+                  ) : (
+                    <th className="py-1">役割</th>
+                  )}
                   {editable && <th className="py-1"></th>}
                 </tr>
               </thead>
@@ -769,36 +927,26 @@ export default function ShiftDetail({ shiftId }: { shiftId: string }) {
                       {!a.is_active && <InactiveBadge />}
                       {absentIds.has(a.user_id) && <AbsentBadge />}
                     </td>
-                    <td className="py-1">
-                      {editable ? (
-                        <select
-                          value={a.role}
-                          aria-label={`${a.name} の役割`}
-                          onChange={(e) => {
-                            const next = [...editAssign];
-                            next[idx] = { ...a, role: e.target.value };
-                            setEditAssign(next);
-                          }}
-                          className="rounded border px-2 py-1"
-                        >
-                          {/* 今の一覧に無い役割（名前を変える前の「共済」など）は、その人の分だけ選択肢に残す。
-                              無いと選択欄が別の役割を表示し、気づかないまま書き換わる */}
-                          {[
-                            ...roles,
-                            NO_ROLE,
-                            ...((roles as readonly string[]).includes(a.role) || a.role === NO_ROLE
-                              ? []
-                              : [a.role]),
-                          ].map((r) => (
-                            <option key={r} value={r}>
-                              {r}
-                            </option>
-                          ))}
-                        </select>
-                      ) : (
-                        a.role
-                      )}
-                    </td>
+                    {a.roles.map((role, i) => (
+                      <td key={i} className={multi ? 'px-1 py-1' : 'py-1'}>
+                        {editable ? (
+                          <RoleSelect
+                            roles={roles}
+                            value={role}
+                            label={`${a.name} の${multi ? `${sessionLabel(i + 1)}の` : ''}役割`}
+                            onChange={(v) => {
+                              const next = [...editAssign];
+                              const nextRoles = [...a.roles];
+                              nextRoles[i] = v;
+                              next[idx] = { ...a, roles: nextRoles };
+                              setEditAssign(next);
+                            }}
+                          />
+                        ) : (
+                          <span className="whitespace-nowrap">{role}</span>
+                        )}
+                      </td>
+                    ))}
                     {editable && (
                       <td className="py-1 text-right">
                         <button
@@ -816,6 +964,7 @@ export default function ShiftDetail({ shiftId }: { shiftId: string }) {
                 ))}
               </tbody>
             </table>
+            </div>
 
             {editable && availableToAdd.length > 0 && (
               <label className="flex items-center gap-2 text-sm">
@@ -932,6 +1081,7 @@ export default function ShiftDetail({ shiftId }: { shiftId: string }) {
                   deadline_date: deadlineDate,
                   title: slot.title ?? '',
                   note: slot.note ?? '',
+                  session_count: sessionCount,
                 });
               }
               setEditInfo(!editInfo);
@@ -1017,6 +1167,26 @@ export default function ShiftDetail({ shiftId }: { shiftId: string }) {
                 className="rounded border px-3 py-2"
               />
             </label>
+            <label className="flex flex-col gap-1 text-sm">
+              回数（1日の中で役割を交代するとき）
+              <select
+                value={infoForm.session_count}
+                onChange={(e) => setInfoForm({ ...infoForm, session_count: Number(e.target.value) })}
+                disabled={status !== 'open'}
+                className="rounded border px-3 py-2 disabled:bg-gray-50"
+              >
+                {sessionNumbers(MAX_SESSIONS).map((n) => (
+                  <option key={n} value={n}>
+                    {n === 1 ? '1回（交代なし）' : `${n}回`}
+                  </option>
+                ))}
+              </select>
+              <span className="text-xs text-gray-400">
+                {status !== 'open'
+                  ? '割り振りのあとは変えられません（変えるなら先に「割り振りを破棄」）。'
+                  : '増やした回の必要人数は、最後の回と同じ人数で始まります。'}
+              </span>
+            </label>
             <button
               type="button"
               onClick={saveInfo}
@@ -1039,6 +1209,8 @@ export default function ShiftDetail({ shiftId }: { shiftId: string }) {
             <dd>
               {formatDateJa(deadlineDate)} 23:59 まで（{deadlineGapLabel(slot.date, deadlineDate)}）
             </dd>
+            <dt className="text-gray-500">回数</dt>
+            <dd>{multi ? `全${sessionCount}回（回ごとに役割を決める）` : '1回（交代なし）'}</dd>
             <dt className="text-gray-500">タイトル</dt>
             <dd>{slot.title || <span className="text-gray-400">なし</span>}</dd>
             <dt className="text-gray-500">備考</dt>
@@ -1079,6 +1251,71 @@ function deadlineGapLabel(date: string, deadlineDate: string): string {
   const gap = daysBetween(deadlineDate, date);
   if (gap === 0) return 'シフト当日';
   return gap > 0 ? `シフトの${gap}日前` : `シフトの${-gap}日後`;
+}
+
+// 必要人数の入力欄
+function NeedInput({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  onChange: (v: number) => void;
+}) {
+  return (
+    <input
+      type="number"
+      min={0}
+      inputMode="numeric"
+      aria-label={label}
+      value={value}
+      onChange={(e) => onChange(Math.max(0, Number(e.target.value) || 0))}
+      className="w-16 rounded border px-2 py-1"
+    />
+  );
+}
+
+// 割り当て人数（足りなければ目立たせる）
+function HaveCount({ have, need }: { have: number; need: number }) {
+  return (
+    <span className={have < need ? 'font-bold text-amber-700' : ''}>
+      {have}
+      {have < need && ` ⚠ あと ${need - have}`}
+    </span>
+  );
+}
+
+// 1人1回ぶんの役割の選択欄
+function RoleSelect({
+  roles,
+  value,
+  label,
+  onChange,
+}: {
+  roles: readonly string[];
+  value: string;
+  label: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <select
+      value={value}
+      aria-label={label}
+      onChange={(e) => onChange(e.target.value)}
+      className="rounded border px-2 py-1"
+    >
+      {/* 今の一覧に無い役割（名前を変える前の「共済」など）は、その人の分だけ選択肢に残す。
+          無いと選択欄が別の役割を表示し、気づかないまま書き換わる */}
+      {[...roles, NO_ROLE, ...(roles.includes(value) || value === NO_ROLE ? [] : [value])].map(
+        (r) => (
+          <option key={r} value={r}>
+            {r}
+          </option>
+        )
+      )}
+    </select>
+  );
 }
 
 // 脱退済みの印（提出状況・割り振りの両方で使う）

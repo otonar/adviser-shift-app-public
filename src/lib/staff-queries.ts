@@ -13,7 +13,8 @@ import { compareSlotsUpcomingFirst, isExpired, todayJst } from './datetime';
 export type PublishedRole = {
   // シフト枠の id（シフト画面で欠席連絡の状態と突き合わせるため）
   slot_id: string;
-  role: string;
+  // 回の順の役割（roles[0] が 1回目）。回数1の枠は1つだけ。表示は session-roles.ts の rolesSummary など
+  roles: string[];
   date: string;
   start_time: string;
   end_time: string;
@@ -39,7 +40,7 @@ function one<T>(value: T | T[] | null): T | null {
 }
 
 /**
- * 自分に割り振られた役割のうち、公開済み（published）のもの。
+ * 自分に割り振られた役割のうち、公開済み（published）のもの。1枠1件（回ごとの役割は roles）。
  * 未来のシフトが先頭、過ぎたものは末尾。
  */
 export async function fetchMyPublishedRoles(userId: string): Promise<PublishedRole[]> {
@@ -47,26 +48,32 @@ export async function fetchMyPublishedRoles(userId: string): Promise<PublishedRo
   const { data } = await supabase
     .from('shift_assignments')
     .select(
-      'role, shift_slot_id, shift_slots(date, start_time, end_time, slot_type, title, assignment_status)'
+      'role, session, shift_slot_id, shift_slots(date, start_time, end_time, slot_type, title, assignment_status)'
     )
-    .eq('user_id', userId);
+    .eq('user_id', userId)
+    .order('session', { ascending: true });
 
-  return (data ?? [])
-    .map((r) => {
-      const slot = one<JoinedSlot>(r.shift_slots as JoinedSlot | JoinedSlot[] | null);
-      if (!slot || slot.assignment_status !== 'published') return null;
-      return {
-        slot_id: r.shift_slot_id as string,
-        role: r.role as string,
-        date: slot.date,
-        start_time: slot.start_time,
-        end_time: slot.end_time,
-        slot_type: slot.slot_type,
-        title: slot.title ?? null,
-      };
-    })
-    .filter((r): r is PublishedRole => r !== null)
-    .sort((a, b) => compareSlotsUpcomingFirst(a, b));
+  const bySlot = new Map<string, PublishedRole>();
+  for (const r of data ?? []) {
+    const slot = one<JoinedSlot>(r.shift_slots as JoinedSlot | JoinedSlot[] | null);
+    if (!slot || slot.assignment_status !== 'published') continue;
+    const slotId = r.shift_slot_id as string;
+    const cur = bySlot.get(slotId);
+    if (cur) {
+      cur.roles.push(r.role as string);
+      continue;
+    }
+    bySlot.set(slotId, {
+      slot_id: slotId,
+      roles: [r.role as string],
+      date: slot.date,
+      start_time: slot.start_time,
+      end_time: slot.end_time,
+      slot_type: slot.slot_type,
+      title: slot.title ?? null,
+    });
+  }
+  return [...bySlot.values()].sort((a, b) => compareSlotsUpcomingFirst(a, b));
 }
 
 export type PendingSlot = {

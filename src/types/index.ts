@@ -101,6 +101,7 @@ export interface ShiftSlot {
   deadline: string; // ISO timestamp
   assignment_status: AssignmentStatus;
   title: string | null; // 一覧で見分けるための短い名前（例: PC研修）
+  session_count: number; // 1日の中の回数（1〜10）。migration 013
   note: string | null;
   created_at: string;
   updated_at: string;
@@ -114,6 +115,7 @@ export interface ShiftTargetUser {
 export interface ShiftRoleRequirement {
   id: string;
   shift_slot_id: string;
+  session: number; // 何回目か（1始まり）。migration 013
   role: string;
   required_count: number;
 }
@@ -132,6 +134,7 @@ export interface ShiftAssignment {
   id: string;
   user_id: string;
   shift_slot_id: string;
+  session: number; // 何回目か（1始まり）。1人1枠1回1役割。migration 013
   role: string;
   created_at: string;
 }
