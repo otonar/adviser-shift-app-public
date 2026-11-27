@@ -6,6 +6,7 @@ import type { SlotType, AssignmentStatus } from '@/types';
 import { NO_ROLE, SLOT_TYPE_LABEL } from '@/types';
 import { rolesForSlotType } from '@/lib/role-assignment';
 import { MAX_SESSIONS, sessionLabel, sessionNumbers, uniformRole } from '@/lib/session-roles';
+import { roleColorClass } from '@/lib/role-colors';
 import {
   addDays,
   daysBetween,
@@ -776,7 +777,9 @@ export default function ShiftDetail({ shiftId }: { shiftId: string }) {
                 const want = need(1, role);
                 return (
                   <tr key={role} className="border-b last:border-b-0">
-                    <td className="py-1">{role}</td>
+                    <td className="py-1">
+                      <RoleChip role={role} />
+                    </td>
                     <td className="py-1">
                       {reqsEditable ? (
                         <NeedInput
@@ -816,7 +819,9 @@ export default function ShiftDetail({ shiftId }: { shiftId: string }) {
                 <tbody>
                   {roles.map((role) => (
                     <tr key={role} className="border-b last:border-b-0">
-                      <td className="whitespace-nowrap py-1 pr-2">{role}</td>
+                      <td className="whitespace-nowrap py-1 pr-2">
+                        <RoleChip role={role} />
+                      </td>
                       {sessions.map((n) => {
                         const want = need(n, role);
                         return (
@@ -943,7 +948,7 @@ export default function ShiftDetail({ shiftId }: { shiftId: string }) {
                             }}
                           />
                         ) : (
-                          <span className="whitespace-nowrap">{role}</span>
+                          <RoleChip role={role} />
                         )}
                       </td>
                     ))}
@@ -1286,7 +1291,18 @@ function HaveCount({ have, need }: { have: number; need: number }) {
   );
 }
 
-// 1人1回ぶんの役割の選択欄
+// 役割名を役割の色で出す（必要人数の表・確定後の割り振り）
+function RoleChip({ role }: { role: string }) {
+  return (
+    <span
+      className={`inline-block whitespace-nowrap rounded border px-1.5 py-0.5 text-xs font-bold ${roleColorClass(role)}`}
+    >
+      {role}
+    </span>
+  );
+}
+
+// 1人1回ぶんの役割の選択欄（選んだ役割の色になる）
 function RoleSelect({
   roles,
   value,
@@ -1303,13 +1319,14 @@ function RoleSelect({
       value={value}
       aria-label={label}
       onChange={(e) => onChange(e.target.value)}
-      className="rounded border px-2 py-1"
+      className={`rounded border px-2 py-1 font-bold ${roleColorClass(value)}`}
     >
       {/* 今の一覧に無い役割（名前を変える前の「共済」など）は、その人の分だけ選択肢に残す。
           無いと選択欄が別の役割を表示し、気づかないまま書き換わる */}
       {[...roles, NO_ROLE, ...(roles.includes(value) || value === NO_ROLE ? [] : [value])].map(
         (r) => (
-          <option key={r} value={r}>
+          // 選択肢にもそれぞれの色を付ける（付けないと PC の Chrome では全部が選んだ役割の色になる）
+          <option key={r} value={r} className={roleColorClass(r)}>
             {r}
           </option>
         )
